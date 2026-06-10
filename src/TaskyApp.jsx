@@ -378,6 +378,36 @@ export default function TaskyApp() {
   };
   const addJournal = (entry) => { setJournal((j) => [{ ...entry, id: uid(), date: todayISO() }, ...j]); setAffinity((a) => Math.min(100, a + 3)); notify("Souvenir ajouté au journal"); };
 
+  /* Un objet de l'inventaire est-il actuellement actif (placé / équipé) ? */
+  const itemActive = (item) =>
+    ((item.id === "lanterne" || item.id === "bonsai") && world.objects.includes(item.id)) ||
+    (item.id === "pousse" && profile.accessory === "pousse") ||
+    ((item.id === "echarpe" || item.id === "cape") && profile.outfit === item.id);
+
+  /* Cliquer un objet de l'inventaire : le place dans le monde, l'équipe, ou le partage */
+  const useItem = (item) => {
+    if (!item.unlocked) return;
+    if (item.id === "lanterne" || item.id === "bonsai") {
+      const has = world.objects.includes(item.id);
+      setWorld((w) => ({ ...w, objects: has ? w.objects.filter((x) => x !== item.id) : [...w.objects, item.id] }));
+      notify(has ? `${item.name} retiré du monde` : `${item.name} placé dans le monde ✦`);
+    } else if (item.id === "pousse") {
+      const on = profile.accessory === "pousse";
+      setProfile((p) => ({ ...p, accessory: on ? "aucun" : "pousse" }));
+      notify(on ? "Petite pousse retirée" : "Petite pousse ajoutée à Tasky ✦");
+    } else if (item.id === "echarpe" || item.id === "cape") {
+      const on = profile.outfit === item.id;
+      setProfile((p) => ({ ...p, outfit: on ? "aucune" : item.id }));
+      notify(on ? `${item.name} retirée` : `${item.name} portée par Tasky ✦`);
+    } else if (item.type === "Nourriture") {
+      setEnergy((e) => Math.min(100, e + 12));
+      setAffinity((a) => Math.min(100, a + 2));
+      notify(`${item.name} partagé avec Tasky ✦`);
+    } else {
+      notify(item.desc);
+    }
+  };
+
   const t = todayISO();
   const todayTasks = tasks.filter((x) => x.due === t && !x.done);
   const doneToday = tasks.filter((x) => x.due === t && x.done).length;
@@ -452,7 +482,7 @@ export default function TaskyApp() {
           {page === "world" && <WorldPage world={world} setWorld={setWorld} stage={stage} avatarProps={avatarProps} motion={motion} />}
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} />}
           {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
-          {page === "inventory" && <InventoryPage inventory={inventory} />}
+          {page === "inventory" && <InventoryPage inventory={inventory} onUse={useItem} isActive={itemActive} />}
           {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
         </main>
       </div>
@@ -807,24 +837,44 @@ function JournalPage({ journal, onAdd }) {
 }
 
 /* ---------- Inventaire ---------- */
-function InventoryPage({ inventory }) {
+/* Indice d'action selon le type d'objet */
+function itemHint(i, active) {
+  if (!i.unlocked) return "Verrouillé";
+  if (i.id === "lanterne" || i.id === "bonsai") return active ? "✓ Placé dans le monde — toucher pour retirer" : "Toucher pour placer dans le monde";
+  if (i.id === "pousse") return active ? "✓ Porté par Tasky — toucher pour retirer" : "Toucher pour ajouter à Tasky";
+  if (i.id === "echarpe" || i.id === "cape") return active ? "✓ Porté par Tasky — toucher pour retirer" : "Toucher pour habiller Tasky";
+  if (i.type === "Nourriture") return "Toucher pour partager avec Tasky";
+  return "Toucher pour revoir ce souvenir";
+}
+
+function InventoryPage({ inventory, onUse, isActive }) {
   const types = ["Tous", "Nourriture", "Vêtements", "Décorations", "Objets émotionnels"];
   const [tab, setTab] = useState("Tous");
   const items = inventory.filter((i) => tab === "Tous" || i.type === tab);
   return (
     <>
-      <div className="pagehead"><div><h1>Inventaire</h1><div className="sub">Tout ce que vous avez réuni pour Tasky.</div></div></div>
+      <div className="pagehead"><div><h1>Inventaire</h1><div className="sub">Touchez un objet débloqué pour le placer dans le monde ou l'offrir à Tasky.</div></div></div>
       <div className="seg" style={{ marginBottom: 18 }}>
         {types.map((x) => <button key={x} className={tab === x ? "on" : ""} onClick={() => setTab(x)}>{x}</button>)}
       </div>
       <div className="grid3">
-        {items.map((i) => (
-          <div key={i.id} className="card" style={{ opacity: i.unlocked ? 1 : 0.45 }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{i.name} {!i.unlocked && "🔒"}</div>
-            <div className="chip" style={{ margin: "8px 0" }}>{i.type}</div>
-            <div className="sub">{i.desc}</div>
-          </div>
-        ))}
+        {items.map((i) => {
+          const active = isActive(i);
+          return (
+            <button
+              key={i.id}
+              className="card"
+              disabled={!i.unlocked}
+              onClick={() => onUse(i)}
+              style={{ textAlign: "left", font: "inherit", color: "var(--ink)", cursor: i.unlocked ? "pointer" : "default", opacity: i.unlocked ? 1 : 0.45, borderColor: active ? "var(--accent)" : undefined, boxShadow: active ? "0 0 0 2px var(--accent) inset, var(--shadow)" : "var(--shadow)" }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{i.name} {!i.unlocked && "🔒"}</div>
+              <div className="chip" style={{ margin: "8px 0" }}>{i.type}</div>
+              <div className="sub">{i.desc}</div>
+              <div className="sub" style={{ marginTop: 8, fontWeight: 600, color: active ? "var(--accent)" : "var(--muted)" }}>{itemHint(i, active)}</div>
+            </button>
+          );
+        })}
       </div>
     </>
   );
