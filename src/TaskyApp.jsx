@@ -104,6 +104,23 @@ const MOODS = ["Paisible", "Serein", "Curieux", "Joyeux", "Rayonnant"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+/* Persistance locale (survit aux rafraîchissements) */
+const STORE_KEY = "tasky:v1";
+function loadState() {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+function saveState(data) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  } catch {
+    /* quota plein ou stockage indisponible : on ignore */
+  }
+}
+
 function seedTasks() {
   const t = todayISO();
   return [
@@ -284,30 +301,31 @@ const Stat = ({ label, value, max = 100 }) => (
    APP
    ============================================================ */
 export default function TaskyApp() {
-  const [theme, setTheme] = useState("light");
-  const [motion, setMotion] = useState("on");
-  const [sounds, setSounds] = useState(true);
-  const [notifs, setNotifs] = useState(true);
+  const [saved] = useState(loadState);
+  const [theme, setTheme] = useState(saved.theme ?? "light");
+  const [motion, setMotion] = useState(saved.motion ?? "on");
+  const [sounds, setSounds] = useState(saved.sounds ?? true);
+  const [notifs, setNotifs] = useState(saved.notifs ?? true);
   const [page, setPage] = useState("today");
-  const [onboarded, setOnboarded] = useState(false);
-  const [profile, setProfile] = useState({ styleId: "zen", silhouette: "galet", eyes: "doux", accessory: "aucun", outfit: "aucune" });
-  const [tasks, setTasks] = useState(seedTasks);
-  const [xp, setXp] = useState(0);
-  const [energy, setEnergy] = useState(42);
-  const [affinity, setAffinity] = useState(18);
-  const [world, setWorld] = useState({ biome: "chambre", ambience: "jour", objects: ["coussin"] });
-  const [rituals, setRituals] = useState([
+  const [onboarded, setOnboarded] = useState(saved.onboarded ?? false);
+  const [profile, setProfile] = useState(saved.profile ?? { styleId: "zen", silhouette: "galet", eyes: "doux", accessory: "aucun", outfit: "aucune" });
+  const [tasks, setTasks] = useState(() => saved.tasks ?? seedTasks());
+  const [xp, setXp] = useState(saved.xp ?? 0);
+  const [energy, setEnergy] = useState(saved.energy ?? 42);
+  const [affinity, setAffinity] = useState(saved.affinity ?? 18);
+  const [world, setWorld] = useState(saved.world ?? { biome: "chambre", ambience: "jour", objects: ["coussin"] });
+  const [rituals, setRituals] = useState(() => saved.rituals ?? [
     { id: uid(), name: "Check-in du matin", done: false },
     { id: uid(), name: "Pause respiration", done: false },
     { id: uid(), name: "Une gratitude", done: false },
   ]);
-  const [journal, setJournal] = useState([]);
-  const [inventory, setInventory] = useState(INVENTORY_SEED);
-  const [history, setHistory] = useState([{ date: todayISO(), text: "Tasky s'éveille pour la première fois." }]);
+  const [journal, setJournal] = useState(saved.journal ?? []);
+  const [inventory, setInventory] = useState(saved.inventory ?? INVENTORY_SEED);
+  const [history, setHistory] = useState(saved.history ?? [{ date: todayISO(), text: "Tasky s'éveille pour la première fois." }]);
   const [showNew, setShowNew] = useState(false);
   const [toast, setToast] = useState(null);
   const [breathing, setBreathing] = useState(false);
-  const prevStage = useRef(stageFor(0).id);
+  const prevStage = useRef(stageFor(saved.xp ?? 0).id);
 
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
   const stage = stageFor(xp);
@@ -327,28 +345,37 @@ export default function TaskyApp() {
     }
   }, [stage.id]);
 
+  /* Sauvegarde automatique dans le navigateur */
+  useEffect(() => {
+    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history });
+  }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history]);
+
   const completeTask = (id) => {
-    setTasks((ts) => ts.map((t) => {
-      if (t.id !== id) return t;
-      const nowDone = !t.done;
-      if (nowDone) {
-        const eff = EFFORTS.find((e) => e.id === t.effort) || EFFORTS[1];
-        const bonus = t.priority === "focus" ? 6 : t.priority === "importante" ? 3 : 0;
-        setXp((x) => x + eff.xp + bonus);
-        setEnergy((e) => Math.min(100, e + 10));
-        setAffinity((a) => Math.min(100, a + 2));
-        notify("Tasky s'illumine doucement ✦");
-      }
-      return { ...t, done: nowDone };
-    }));
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const nowDone = !task.done;
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: nowDone } : t)));
+    if (nowDone) {
+      const eff = EFFORTS.find((e) => e.id === task.effort) || EFFORTS[1];
+      const bonus = task.priority === "focus" ? 6 : task.priority === "importante" ? 3 : 0;
+      setXp((x) => x + eff.xp + bonus);
+      setEnergy((e) => Math.min(100, e + 10));
+      setAffinity((a) => Math.min(100, a + 2));
+      notify("Tasky s'illumine doucement ✦");
+    }
   };
   const toggleSub = (taskId, subId) => setTasks((ts) => ts.map((t) => t.id === taskId ? { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } : t));
   const addTask = (t) => { setTasks((ts) => [{ ...t, id: uid(), done: false }, ...ts]); setShowNew(false); notify("Tâche ajoutée"); };
-  const checkRitual = (id) => setRituals((rs) => rs.map((r) => {
-    if (r.id !== id) return r;
-    if (!r.done) { setAffinity((a) => Math.min(100, a + 4)); setEnergy((e) => Math.min(100, e + 4)); notify("Tasky apprécie ce moment calme"); }
-    return { ...r, done: !r.done };
-  }));
+  const checkRitual = (id) => {
+    const r = rituals.find((x) => x.id === id);
+    if (!r) return;
+    if (!r.done) {
+      setAffinity((a) => Math.min(100, a + 4));
+      setEnergy((e) => Math.min(100, e + 4));
+      notify("Tasky apprécie ce moment calme");
+    }
+    setRituals((rs) => rs.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
+  };
   const addJournal = (entry) => { setJournal((j) => [{ ...entry, id: uid(), date: todayISO() }, ...j]); setAffinity((a) => Math.min(100, a + 3)); notify("Souvenir ajouté au journal"); };
 
   const t = todayISO();
@@ -426,7 +453,7 @@ export default function TaskyApp() {
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} />}
           {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
           {page === "inventory" && <InventoryPage inventory={inventory} />}
-          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} />}
+          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
         </main>
       </div>
 
@@ -804,7 +831,7 @@ function InventoryPage({ inventory }) {
 }
 
 /* ---------- Réglages ---------- */
-function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, notifs, setNotifs }) {
+function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, notifs, setNotifs, onReset }) {
   const Row = ({ label, sub, children }) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: "1px solid var(--line)", gap: 16, flexWrap: "wrap" }}>
       <div><div style={{ fontWeight: 600, fontSize: 15 }}>{label}</div><div className="sub">{sub}</div></div>
@@ -826,6 +853,9 @@ function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, n
         </Row>
         <Row label="Notifications douces" sub="Jamais de culpabilisation — seulement des invitations.">
           <div className="seg"><button className={notifs ? "on" : ""} onClick={() => setNotifs(true)}>Activées</button><button className={!notifs ? "on" : ""} onClick={() => setNotifs(false)}>Coupées</button></div>
+        </Row>
+        <Row label="Données" sub="Votre progression est enregistrée dans ce navigateur. La réinitialiser efface tout et relance l'accueil.">
+          <button className="btn ghost" onClick={() => { if (window.confirm("Tout réinitialiser ? Cette action est définitive.")) onReset?.(); }}>Réinitialiser</button>
         </Row>
         <div style={{ paddingTop: 16 }}>
           <div style={{ fontWeight: 600, fontSize: 15 }}>Visuels de Tasky</div>
