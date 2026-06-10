@@ -1,0 +1,837 @@
+import React, { useState, useEffect, useMemo, useRef } from "react";
+
+/* ============================================================
+   TASKY — MVP solo, zen, compagnon évolutif
+   - TaskyAvatar = placeholder modulaire, remplaçable (voir bas de fichier)
+   - State en mémoire (pas de persistance dans ce MVP)
+   ============================================================ */
+
+/* ---------- Constantes produit ---------- */
+
+const STYLES = [
+  { id: "zen", name: "Zen naturel", desc: "Mousse, pierre, lumière douce", accent: "#6B8F71", accent2: "#A7C4A0", tint: "#EFF3EC" },
+  { id: "retro", name: "Rétro urbain", desc: "Brique, néon fatigué, vinyle", accent: "#C4673B", accent2: "#E2A87C", tint: "#F5EDE4" },
+  { id: "futur", name: "Futur doux", desc: "Pastels, halos, courbes calmes", accent: "#7B7FD4", accent2: "#B9BCEF", tint: "#EFEFF8" },
+  { id: "japon", name: "Japon campagne", desc: "Indigo, kaki, papier washi", accent: "#3F5577", accent2: "#C97B4A", tint: "#EEF0F2" },
+  { id: "studio", name: "Créatif studio", desc: "Encre, papier, jaune soleil", accent: "#C9A227", accent2: "#3A3A38", tint: "#F6F2E6" },
+  { id: "mono", name: "Minimal monochrome", desc: "Gris, encre, silence", accent: "#5A5A5E", accent2: "#9A9AA0", tint: "#F1F1F2" },
+];
+
+const SILHOUETTES = [
+  { id: "galet", name: "Galet" },
+  { id: "flamme", name: "Flamme" },
+  { id: "feuille", name: "Feuille" },
+  { id: "carre", name: "Carré doux" },
+];
+const EYES = [
+  { id: "doux", name: "Doux" },
+  { id: "rond", name: "Ronds" },
+  { id: "etoile", name: "Étoilés" },
+  { id: "calme", name: "Mi-clos" },
+];
+const ACCESSORIES = [
+  { id: "aucun", name: "Aucun" },
+  { id: "pousse", name: "Petite pousse" },
+  { id: "beret", name: "Béret" },
+  { id: "antenne", name: "Antenne lumineuse" },
+];
+const OUTFITS = [
+  { id: "aucune", name: "Aucune" },
+  { id: "echarpe", name: "Écharpe" },
+  { id: "cape", name: "Petite cape" },
+];
+
+const PRIORITIES = [
+  { id: "douce", name: "Douce", tone: "var(--accent2)" },
+  { id: "normale", name: "Normale", tone: "var(--muted)" },
+  { id: "importante", name: "Importante", tone: "#C97B4A" },
+  { id: "focus", name: "Focus", tone: "var(--accent)" },
+];
+const EFFORTS = [
+  { id: "5", name: "5 min", xp: 8 },
+  { id: "15", name: "15 min", xp: 14 },
+  { id: "30", name: "30 min", xp: 22 },
+  { id: "deep", name: "Deep focus", xp: 35 },
+];
+const REPEATS = ["Aucune", "Quotidienne", "Hebdomadaire"];
+const CATEGORIES = ["Travail", "Maison", "Soin de soi", "Études", "Créatif", "Autre"];
+
+const STAGES = [
+  { id: 0, name: "Éveil", min: 0, unlock: "Tasky ouvre les yeux" },
+  { id: 1, name: "Élan", min: 50, unlock: "Accessoire « Petite pousse » + objet « Lanterne »" },
+  { id: 2, name: "Ancrage", min: 150, unlock: "Biome « Campagne japonaise » + « Bonsaï »" },
+  { id: 3, name: "Rayonnement", min: 300, unlock: "Tenue « Petite cape » + biome « Ville rétro »" },
+  { id: 4, name: "Harmonie", min: 500, unlock: "Biome « Jardin apaisant » + halo d'harmonie" },
+];
+
+const BIOMES = [
+  { id: "chambre", name: "Chambre cosy", stage: 0, sky: ["#F3E9DC", "#E8D5C0"] },
+  { id: "campagne", name: "Campagne", stage: 0, sky: ["#DCE8D4", "#C5D8B8"] },
+  { id: "japon", name: "Campagne japonaise", stage: 2, sky: ["#DDE4EC", "#C8D4E0"] },
+  { id: "retro", name: "Ville rétro", stage: 3, sky: ["#EAD9C8", "#D9BBA4"] },
+  { id: "futur", name: "Ville futuriste", stage: 3, sky: ["#E3E2F4", "#CBCBEA"] },
+  { id: "jardin", name: "Jardin apaisant", stage: 4, sky: ["#E2EFE4", "#C9E2CE"] },
+];
+const AMBIENCES = [
+  { id: "aube", name: "Aube", overlay: "rgba(255,200,160,0.25)" },
+  { id: "jour", name: "Jour", overlay: "rgba(255,255,255,0)" },
+  { id: "crepuscule", name: "Crépuscule", overlay: "rgba(120,90,160,0.22)" },
+  { id: "nuit", name: "Nuit", overlay: "rgba(30,40,80,0.38)" },
+];
+const WORLD_OBJECTS = [
+  { id: "lanterne", name: "Lanterne", stage: 1 },
+  { id: "bonsai", name: "Bonsaï", stage: 2 },
+  { id: "the", name: "Service à thé", stage: 0 },
+  { id: "coussin", name: "Coussin", stage: 0 },
+  { id: "carillon", name: "Carillon", stage: 2 },
+];
+
+const INVENTORY_SEED = [
+  { id: "riz", name: "Bol de riz doux", type: "Nourriture", desc: "Redonne un peu d'énergie à Tasky.", unlocked: true },
+  { id: "the-vert", name: "Thé vert", type: "Nourriture", desc: "Un moment calme partagé.", unlocked: true },
+  { id: "echarpe", name: "Écharpe", type: "Vêtements", desc: "Tenue de départ.", unlocked: true },
+  { id: "cape", name: "Petite cape", type: "Vêtements", desc: "Débloquée au palier Rayonnement.", unlocked: false },
+  { id: "pousse", name: "Petite pousse", type: "Décorations", desc: "Accessoire — palier Élan.", unlocked: false },
+  { id: "lanterne", name: "Lanterne", type: "Décorations", desc: "Objet de monde — palier Élan.", unlocked: false },
+  { id: "bonsai", name: "Bonsaï", type: "Décorations", desc: "Objet de monde — palier Ancrage.", unlocked: false },
+  { id: "galet-souvenir", name: "Galet souvenir", type: "Objets émotionnels", desc: "Le premier jour avec Tasky.", unlocked: true },
+];
+
+const MOODS = ["Paisible", "Serein", "Curieux", "Joyeux", "Rayonnant"];
+
+/* ---------- Utilitaires ---------- */
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+function seedTasks() {
+  const t = todayISO();
+  return [
+    { id: uid(), name: "Préparer la journée", desc: "Trois priorités, pas plus.", priority: "douce", due: t, time: "08:30", repeat: "Quotidienne", category: "Soin de soi", effort: "5", done: false, subtasks: [] },
+    { id: uid(), name: "Répondre aux messages importants", desc: "", priority: "importante", due: t, time: "", repeat: "Aucune", category: "Travail", effort: "15", done: false, subtasks: [{ id: uid(), name: "Trier la boîte", done: false }, { id: uid(), name: "Répondre aux 3 urgents", done: false }] },
+    { id: uid(), name: "Session deep work — projet principal", desc: "Une seule chose à la fois.", priority: "focus", due: t, time: "14:00", repeat: "Aucune", category: "Travail", effort: "deep", done: false, subtasks: [] },
+    { id: uid(), name: "Marche de 20 minutes", desc: "", priority: "normale", due: t, time: "", repeat: "Quotidienne", category: "Soin de soi", effort: "15", done: true, subtasks: [] },
+  ];
+}
+
+function stageFor(xp) {
+  let s = STAGES[0];
+  for (const st of STAGES) if (xp >= st.min) s = st;
+  return s;
+}
+function moodFor(affinity, energy) {
+  const score = affinity * 0.6 + energy * 0.4;
+  return MOODS[Math.min(MOODS.length - 1, Math.floor(score / 22))];
+}
+
+/* ---------- Styles ---------- */
+
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Albert+Sans:wght@400;500;600;700&display=swap');
+
+:root { --r: 18px; }
+[data-theme="light"] {
+  --bg: #F4F3EF; --surface: #FFFFFF; --surface2: #FBFAF7;
+  --ink: #2B2B28; --muted: #8A887F; --line: #E5E2DA;
+  --shadow: 0 8px 30px rgba(40,40,30,0.07);
+}
+[data-theme="dark"] {
+  --bg: #1C1C1A; --surface: #262624; --surface2: #2D2D2A;
+  --ink: #ECEAE3; --muted: #95938A; --line: #3A3A36;
+  --shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+.tasky-app { background: var(--bg); color: var(--ink); min-height: 100vh; font-family: 'Albert Sans', sans-serif; }
+.tasky-app * { box-sizing: border-box; }
+.tasky-app h1, .tasky-app h2, .tasky-app h3, .display { font-family: 'Shippori Mincho', serif; font-weight: 600; letter-spacing: 0.01em; margin: 0; }
+.layout { display: flex; min-height: 100vh; }
+.side { width: 218px; padding: 28px 16px; border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 4px; }
+.brand { font-family: 'Shippori Mincho', serif; font-size: 22px; letter-spacing: 0.18em; padding: 0 12px 22px; }
+.brand span { color: var(--accent); }
+.navbtn { display: flex; align-items: center; gap: 10px; width: 100%; border: none; background: transparent; color: var(--muted); font: inherit; font-weight: 500; padding: 10px 12px; border-radius: 12px; cursor: pointer; text-align: left; }
+.navbtn.on { background: var(--tint); color: var(--ink); }
+.navbtn:hover { color: var(--ink); }
+.navbtn svg { flex: none; }
+.main { flex: 1; padding: 36px clamp(18px, 4vw, 52px) 110px; max-width: 1060px; }
+.pagehead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
+.pagehead h1 { font-size: 30px; }
+.sub { color: var(--muted); font-size: 14.5px; margin-top: 6px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); }
+.btn { border: none; font: inherit; font-weight: 600; padding: 10px 18px; border-radius: 999px; cursor: pointer; background: var(--accent); color: #fff; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.soft { background: var(--tint); color: var(--ink); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted); background: var(--surface2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.bar { height: 8px; border-radius: 99px; background: var(--tint); overflow: hidden; }
+.bar > div { height: 100%; border-radius: 99px; background: var(--accent); transition: width 0.6s ease; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.seg { display: inline-flex; background: var(--surface2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { border: none; background: transparent; font: inherit; font-size: 13.5px; font-weight: 500; color: var(--muted); padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.taskrow { display: flex; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.taskrow:last-child { border-bottom: none; }
+.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); background: transparent; cursor: pointer; flex: none; margin-top: 2px; display: grid; place-items: center; transition: all 0.2s; }
+.check.on { background: var(--accent); border-color: var(--accent); }
+.tname { font-weight: 600; font-size: 15px; }
+.tname.done { color: var(--muted); text-decoration: line-through; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field input, .field textarea, .field select { font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); }
+.field input:focus, .field textarea:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.overlay { position: fixed; inset: 0; background: rgba(20,20,15,0.45); display: grid; place-items: center; z-index: 50; padding: 18px; }
+.modal { background: var(--surface); border-radius: 22px; padding: 26px; width: min(560px, 100%); max-height: 88vh; overflow: auto; box-shadow: var(--shadow); }
+.scene { border-radius: var(--r); position: relative; overflow: hidden; min-height: 240px; display: grid; place-items: end center; padding-bottom: 18px; }
+.scene .ground { position: absolute; bottom: 0; left: 0; right: 0; height: 38%; background: rgba(255,255,255,0.28); border-radius: 100% 100% 0 0 / 60px 60px 0 0; }
+.toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 12px 22px; border-radius: 999px; font-weight: 600; font-size: 14px; z-index: 99; animation: pop 0.3s ease; box-shadow: var(--shadow); }
+@keyframes pop { from { opacity: 0; transform: translate(-50%, 8px); } }
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.float { animation: floaty 4s ease-in-out infinite; }
+[data-motion="off"] .float, [data-motion="off"] .breath-circle { animation: none !important; }
+.pick { border: 1.5px solid var(--line); background: var(--surface); border-radius: 16px; padding: 14px; cursor: pointer; text-align: left; font: inherit; color: var(--ink); transition: border-color 0.15s; }
+.pick.on { border-color: var(--accent); background: var(--tint); }
+.pick .pname { font-weight: 700; font-size: 14.5px; }
+.pick .pdesc { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.statline { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.statline span:last-child { color: var(--muted); font-weight: 500; }
+.mobilenav { display: none; }
+.fab { position: fixed; right: 26px; bottom: 26px; width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 26px; cursor: pointer; box-shadow: var(--shadow); z-index: 40; }
+.breath-circle { width: 120px; height: 120px; border-radius: 50%; background: var(--tint); border: 2px solid var(--accent); animation: breath 8s ease-in-out infinite; }
+@keyframes breath { 0%,100% { transform: scale(0.7); } 50% { transform: scale(1.15); } }
+@media (max-width: 820px) {
+  .side { display: none; }
+  .grid2, .grid3 { grid-template-columns: 1fr; }
+  .main { padding: 22px 16px 130px; }
+  .mobilenav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 45; overflow-x: auto; }
+  .mobilenav button { flex: 1; border: none; background: none; font: inherit; font-size: 10.5px; font-weight: 600; color: var(--muted); padding: 10px 6px 14px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; min-width: 64px; }
+  .mobilenav button.on { color: var(--accent); }
+  .fab { bottom: 84px; }
+}
+`;
+
+/* ---------- Icônes (traits simples) ---------- */
+const Ic = ({ d, size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+);
+const ICONS = {
+  today: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4M12 8a4 4 0 100 8 4 4 0 000-8z",
+  tasks: "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2",
+  tasky: "M12 4c4 0 7 3 7 7 0 4.5-3 9-7 9s-7-4.5-7-9c0-4 3-7 7-7zM9.5 11h.01M14.5 11h.01M10 15c.6.6 1.2 1 2 1s1.4-.4 2-1",
+  world: "M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z",
+  rituals: "M12 21c-4-2-7-5.5-7-9.5C5 7 8 4 12 4s7 3 7 7.5c0 4-3 7.5-7 9.5zM12 8v5M9.5 10.5h5",
+  journal: "M5 4h11a2 2 0 012 2v14H7a2 2 0 01-2-2V4zM5 4a2 2 0 012-2h9M9 9h6M9 13h4",
+  inventory: "M4 8l8-5 8 5v8l-8 5-8-5V8zM4 8l8 5 8-5M12 13v8",
+  settings: "M12 9a3 3 0 100 6 3 3 0 000-6zM19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1c.6.5 1.3.9 2 1.2L10 21h4l.5-2.6c.7-.3 1.4-.7 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z",
+};
+const NAV = [
+  { id: "today", name: "Aujourd'hui" }, { id: "tasks", name: "Tâches" }, { id: "tasky", name: "Tasky" },
+  { id: "world", name: "Monde" }, { id: "rituals", name: "Rituels" }, { id: "journal", name: "Journal" },
+  { id: "inventory", name: "Inventaire" }, { id: "settings", name: "Réglages" },
+];
+
+/* ============================================================
+   TaskyAvatar — PLACEHOLDER MODULAIRE
+   Remplacez ce composant par vos vrais assets (même props).
+   Props : silhouette, eyes, accessory, outfit, mood, stage, size, accent
+   ============================================================ */
+function TaskyAvatar({ silhouette = "galet", eyes = "doux", accessory = "aucun", outfit = "aucune", mood = "Serein", stage = 0, size = 150, accent = "#6B8F71", floating = true }) {
+  const bodies = {
+    galet: "M75 20 C115 20 135 55 135 90 C135 122 110 138 75 138 C40 138 15 122 15 90 C15 55 35 20 75 20 Z",
+    flamme: "M75 14 C100 38 132 62 132 96 C132 124 106 140 75 140 C44 140 18 124 18 96 C18 62 50 38 75 14 Z",
+    feuille: "M75 16 C120 28 136 68 128 102 C122 128 100 140 75 140 C50 140 28 128 22 102 C14 68 30 28 75 16 Z",
+    carre: "M40 24 H110 C126 24 134 36 134 56 V104 C134 126 122 138 100 138 H50 C28 138 16 126 16 104 V56 C16 36 24 24 40 24 Z",
+  };
+  const happy = ["Joyeux", "Rayonnant"].includes(mood);
+  const eyeY = 78;
+  const renderEyes = () => {
+    if (eyes === "rond") return (<g fill="#2B2B28"><circle cx="55" cy={eyeY} r="6" /><circle cx="95" cy={eyeY} r="6" /></g>);
+    if (eyes === "etoile") return (<g fill="#2B2B28"><path d={`M55 ${eyeY-7} l2.2 4.6 5 .7-3.6 3.5.8 5-4.4-2.4-4.4 2.4.8-5-3.6-3.5 5-.7z`} /><path d={`M95 ${eyeY-7} l2.2 4.6 5 .7-3.6 3.5.8 5-4.4-2.4-4.4 2.4.8-5-3.6-3.5 5-.7z`} /></g>);
+    if (eyes === "calme") return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round"><path d={`M48 ${eyeY} h14`} /><path d={`M88 ${eyeY} h14`} /></g>);
+    return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round" fill="none"><path d={`M48 ${eyeY+2} q7 ${happy ? -9 : -6} 14 0`} /><path d={`M88 ${eyeY+2} q7 ${happy ? -9 : -6} 14 0`} /></g>);
+  };
+  return (
+    <div className={floating ? "float" : ""} style={{ width: size, height: size }} aria-label={`Tasky, humeur ${mood}`}>
+      <svg viewBox="0 0 150 150" width={size} height={size}>
+        {stage >= 4 && <circle cx="75" cy="80" r="68" fill={accent} opacity="0.12" />}
+        <ellipse cx="75" cy="142" rx="42" ry="6" fill="#000" opacity="0.08" />
+        <path d={bodies[silhouette] || bodies.galet} fill={accent} opacity="0.88" />
+        <path d={bodies[silhouette] || bodies.galet} fill="url(#shine)" />
+        <defs><linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity="0.35" /><stop offset="0.5" stopColor="#fff" stopOpacity="0" /></linearGradient></defs>
+        {renderEyes()}
+        <path d={`M66 ${happy ? 94 : 96} q9 ${happy ? 10 : 6} 18 0`} stroke="#2B2B28" strokeWidth="3.2" fill="none" strokeLinecap="round" />
+        {happy && <g fill="#E08A6D" opacity="0.5"><circle cx="44" cy="92" r="5.5" /><circle cx="106" cy="92" r="5.5" /></g>}
+        {/* Slot accessoire (tête) */}
+        {accessory === "pousse" && <g><path d="M75 22 q-2 -12 -10 -15 q12 -1 12 13" fill="#6B8F71" /><path d="M77 22 q2 -12 10 -15 q-12 -1 -12 13" fill="#8FB08A" /></g>}
+        {accessory === "beret" && <path d="M42 34 q33 -26 66 0 q-8 -8 -33 -8 t-33 8z" fill="#2B2B28" opacity="0.8" />}
+        {accessory === "antenne" && <g><line x1="75" y1="22" x2="75" y2="6" stroke="#2B2B28" strokeWidth="2.6" /><circle cx="75" cy="5" r="4.5" fill={accent} /></g>}
+        {/* Slot tenue (bas) */}
+        {outfit === "echarpe" && <path d="M40 108 q35 14 70 0 l-3 12 q-32 12 -64 0 z" fill={accent} opacity="0.55" />}
+        {outfit === "cape" && <path d="M30 70 q-14 40 4 62 q40 10 82 0 q18 -22 4 -62 q-45 -16 -90 0z" fill={accent} opacity="0.3" />}
+      </svg>
+    </div>
+  );
+}
+
+/* ---------- Petits composants ---------- */
+const Stat = ({ label, value, max = 100 }) => (
+  <div style={{ marginBottom: 14 }}>
+    <div className="statline"><span>{label}</span><span>{Math.round(value)} / {max}</span></div>
+    <div className="bar"><div style={{ width: `${Math.min(100, (value / max) * 100)}%` }} /></div>
+  </div>
+);
+
+/* ============================================================
+   APP
+   ============================================================ */
+export default function TaskyApp() {
+  const [theme, setTheme] = useState("light");
+  const [motion, setMotion] = useState("on");
+  const [sounds, setSounds] = useState(true);
+  const [notifs, setNotifs] = useState(true);
+  const [page, setPage] = useState("today");
+  const [onboarded, setOnboarded] = useState(false);
+  const [profile, setProfile] = useState({ styleId: "zen", silhouette: "galet", eyes: "doux", accessory: "aucun", outfit: "aucune" });
+  const [tasks, setTasks] = useState(seedTasks);
+  const [xp, setXp] = useState(0);
+  const [energy, setEnergy] = useState(42);
+  const [affinity, setAffinity] = useState(18);
+  const [world, setWorld] = useState({ biome: "chambre", ambience: "jour", objects: ["coussin"] });
+  const [rituals, setRituals] = useState([
+    { id: uid(), name: "Check-in du matin", done: false },
+    { id: uid(), name: "Pause respiration", done: false },
+    { id: uid(), name: "Une gratitude", done: false },
+  ]);
+  const [journal, setJournal] = useState([]);
+  const [inventory, setInventory] = useState(INVENTORY_SEED);
+  const [history, setHistory] = useState([{ date: todayISO(), text: "Tasky s'éveille pour la première fois." }]);
+  const [showNew, setShowNew] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [breathing, setBreathing] = useState(false);
+  const prevStage = useRef(stageFor(0).id);
+
+  const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
+  const stage = stageFor(xp);
+  const mood = moodFor(affinity, energy);
+  const nextStage = STAGES.find((s) => s.min > xp);
+
+  const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+
+  /* Paliers : déblocages */
+  useEffect(() => {
+    if (stage.id > prevStage.current) {
+      notify(`✦ Palier atteint : ${stage.name} — ${stage.unlock}`);
+      setHistory((h) => [{ date: todayISO(), text: `Tasky atteint le palier « ${stage.name} ». ${stage.unlock}.` }, ...h]);
+      const unlockIds = { 1: ["pousse", "lanterne"], 2: ["bonsai"], 3: ["cape"], 4: [] }[stage.id] || [];
+      setInventory((inv) => inv.map((i) => (unlockIds.includes(i.id) ? { ...i, unlocked: true } : i)));
+      prevStage.current = stage.id;
+    }
+  }, [stage.id]);
+
+  const completeTask = (id) => {
+    setTasks((ts) => ts.map((t) => {
+      if (t.id !== id) return t;
+      const nowDone = !t.done;
+      if (nowDone) {
+        const eff = EFFORTS.find((e) => e.id === t.effort) || EFFORTS[1];
+        const bonus = t.priority === "focus" ? 6 : t.priority === "importante" ? 3 : 0;
+        setXp((x) => x + eff.xp + bonus);
+        setEnergy((e) => Math.min(100, e + 10));
+        setAffinity((a) => Math.min(100, a + 2));
+        notify("Tasky s'illumine doucement ✦");
+      }
+      return { ...t, done: nowDone };
+    }));
+  };
+  const toggleSub = (taskId, subId) => setTasks((ts) => ts.map((t) => t.id === taskId ? { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } : t));
+  const addTask = (t) => { setTasks((ts) => [{ ...t, id: uid(), done: false }, ...ts]); setShowNew(false); notify("Tâche ajoutée"); };
+  const checkRitual = (id) => setRituals((rs) => rs.map((r) => {
+    if (r.id !== id) return r;
+    if (!r.done) { setAffinity((a) => Math.min(100, a + 4)); setEnergy((e) => Math.min(100, e + 4)); notify("Tasky apprécie ce moment calme"); }
+    return { ...r, done: !r.done };
+  }));
+  const addJournal = (entry) => { setJournal((j) => [{ ...entry, id: uid(), date: todayISO() }, ...j]); setAffinity((a) => Math.min(100, a + 3)); notify("Souvenir ajouté au journal"); };
+
+  const t = todayISO();
+  const todayTasks = tasks.filter((x) => x.due === t && !x.done);
+  const doneToday = tasks.filter((x) => x.due === t && x.done).length;
+  const totalToday = tasks.filter((x) => x.due === t).length;
+  const biome = BIOMES.find((b) => b.id === world.biome) || BIOMES[0];
+  const ambience = AMBIENCES.find((a) => a.id === world.ambience) || AMBIENCES[1];
+
+  const avatarProps = { ...profile, mood, stage: stage.id, accent: style.accent };
+
+  const vars = { "--accent": style.accent, "--accent2": style.accent2, "--tint": theme === "dark" ? "rgba(255,255,255,0.07)" : style.tint };
+
+  if (!onboarded) {
+    return (
+      <div className="tasky-app" data-theme={theme} data-motion={motion} style={vars}>
+        <style>{css}</style>
+        <Onboarding profile={profile} setProfile={setProfile} onDone={() => { setOnboarded(true); notify("Tasky vous rejoint ✦"); }} />
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="tasky-app" data-theme={theme} data-motion={motion} style={vars}>
+      <style>{css}</style>
+      <div className="layout">
+        <aside className="side">
+          <div className="brand">TASK<span>Y</span></div>
+          {NAV.map((n) => (
+            <button key={n.id} className={`navbtn ${page === n.id ? "on" : ""}`} onClick={() => setPage(n.id)}>
+              <Ic d={ICONS[n.id]} /> {n.name}
+            </button>
+          ))}
+        </aside>
+
+        <main className="main">
+          {page === "today" && (
+            <>
+              <div className="pagehead">
+                <div><h1>Aujourd'hui</h1><div className="sub">{new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })} · Tasky est {mood.toLowerCase()}</div></div>
+                <button className="btn" onClick={() => setShowNew(true)}>+ Ajouter une tâche</button>
+              </div>
+              <div className="grid2">
+                <div className="card scene" style={{ background: `linear-gradient(${biome.sky[0]}, ${biome.sky[1]})` }}>
+                  <div style={{ position: "absolute", inset: 0, background: ambience.overlay }} />
+                  <div className="ground" />
+                  <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+                    <TaskyAvatar {...avatarProps} size={150} floating={motion === "on"} />
+                    <div className="display" style={{ fontSize: 15, marginTop: 4, color: "#2B2B28" }}>{stage.name}</div>
+                  </div>
+                </div>
+                <div className="card">
+                  <h3 style={{ fontSize: 18, marginBottom: 16 }}>Résumé du jour</h3>
+                  <Stat label="Progression du jour" value={totalToday ? (doneToday / totalToday) * 100 : 0} />
+                  <Stat label="Énergie" value={energy} />
+                  <Stat label="Humeur" value={(MOODS.indexOf(mood) + 1) * 20} />
+                  <div className="sub">{doneToday} tâche{doneToday > 1 ? "s" : ""} accomplie{doneToday > 1 ? "s" : ""} · {todayTasks.length} restante{todayTasks.length > 1 ? "s" : ""}</div>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginTop: 18 }}>
+                <h3 style={{ fontSize: 18, marginBottom: 6 }}>Tâches du jour</h3>
+                {todayTasks.length === 0 && <div className="sub" style={{ padding: "14px 0" }}>Tout est calme. Ajoutez une tâche, ou profitez du moment avec Tasky.</div>}
+                {[...todayTasks].sort((a, b) => (a.priority === "focus" ? -1 : 1)).map((task) => (
+                  <TaskRow key={task.id} task={task} onToggle={completeTask} onSub={toggleSub} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {page === "tasks" && <TasksPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={() => setShowNew(true)} />}
+          {page === "tasky" && <TaskyPage profile={profile} setProfile={setProfile} stage={stage} nextStage={nextStage} xp={xp} energy={energy} affinity={affinity} mood={mood} history={history} inventory={inventory} avatarProps={avatarProps} motion={motion} />}
+          {page === "world" && <WorldPage world={world} setWorld={setWorld} stage={stage} avatarProps={avatarProps} motion={motion} />}
+          {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} />}
+          {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
+          {page === "inventory" && <InventoryPage inventory={inventory} />}
+          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} />}
+        </main>
+      </div>
+
+      <nav className="mobilenav">
+        {NAV.map((n) => (
+          <button key={n.id} className={page === n.id ? "on" : ""} onClick={() => setPage(n.id)}><Ic d={ICONS[n.id]} size={20} />{n.name}</button>
+        ))}
+      </nav>
+      <button className="fab" onClick={() => setShowNew(true)} aria-label="Ajouter une tâche">+</button>
+
+      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onSave={addTask} />}
+      {breathing && (
+        <div className="overlay" onClick={() => setBreathing(false)}>
+          <div style={{ textAlign: "center", color: "#fff" }}>
+            <div className="breath-circle" style={{ margin: "0 auto 24px" }} />
+            <div className="display" style={{ fontSize: 20 }}>Inspirez… expirez…</div>
+            <div style={{ opacity: 0.8, marginTop: 8, fontSize: 14 }}>Touchez l'écran pour terminer</div>
+          </div>
+        </div>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+/* ---------- Onboarding ---------- */
+function Onboarding({ profile, setProfile, onDone }) {
+  const [step, setStep] = useState(0);
+  const steps = ["Style", "Silhouette", "Regard", "Accessoire", "Tenue"];
+  const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
+  const set = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
+  const opts = [
+    { key: "styleId", items: STYLES, title: "Quel univers vous ressemble ?", sub: "Ce choix teinte le monde de Tasky — et toute l'application." },
+    { key: "silhouette", items: SILHOUETTES, title: "Sa silhouette", sub: "La forme de base de votre compagnon." },
+    { key: "eyes", items: EYES, title: "Son regard", sub: "L'expression de départ de Tasky." },
+    { key: "accessory", items: ACCESSORIES, title: "Un premier accessoire", sub: "D'autres se débloqueront avec le temps." },
+    { key: "outfit", items: OUTFITS, title: "Sa tenue de départ", sub: "Tasky est prêt à vous rencontrer." },
+  ];
+  const cur = opts[step];
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20 }}>
+      <div style={{ width: "min(620px, 100%)", textAlign: "center" }}>
+        <div className="display" style={{ fontSize: 14, letterSpacing: "0.3em", color: "var(--muted)", marginBottom: 6 }}>TASKY</div>
+        <h1 style={{ fontSize: 26, marginBottom: 4 }}>{cur.title}</h1>
+        <div className="sub" style={{ marginBottom: 22 }}>{cur.sub}</div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 26 }}>
+          <TaskyAvatar {...profile} accent={style.accent} mood="Curieux" size={140} />
+        </div>
+        <div className="grid3" style={{ marginBottom: 26, textAlign: "left" }}>
+          {cur.items.map((it) => (
+            <button key={it.id} className={`pick ${profile[cur.key] === it.id ? "on" : ""}`} onClick={() => set(cur.key, it.id)}>
+              <div className="pname">{it.name}</div>
+              {it.desc && <div className="pdesc">{it.desc}</div>}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
+          {step > 0 && <button className="btn ghost" onClick={() => setStep(step - 1)}>Retour</button>}
+          {step < steps.length - 1
+            ? <button className="btn" onClick={() => setStep(step + 1)}>Continuer</button>
+            : <button className="btn" onClick={onDone}>Rencontrer Tasky</button>}
+        </div>
+        <div className="sub" style={{ marginTop: 16 }}>{step + 1} / {steps.length} · {steps[step]}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Ligne de tâche ---------- */
+function TaskRow({ task, onToggle, onSub }) {
+  const p = PRIORITIES.find((x) => x.id === task.priority);
+  const e = EFFORTS.find((x) => x.id === task.effort);
+  return (
+    <div className="taskrow">
+      <button className={`check ${task.done ? "on" : ""}`} onClick={() => onToggle(task.id)} aria-label="Terminer la tâche">
+        {task.done && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round"><path d="M5 13l4 4 10-11" /></svg>}
+      </button>
+      <div style={{ flex: 1 }}>
+        <div className={`tname ${task.done ? "done" : ""}`}>{task.name}</div>
+        {task.desc && <div className="sub" style={{ marginTop: 2 }}>{task.desc}</div>}
+        <div style={{ display: "flex", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
+          <span className="chip"><span className="dot" style={{ background: p?.tone }} />{p?.name}</span>
+          <span className="chip">{task.category}</span>
+          <span className="chip">{e?.name}</span>
+          {task.time && <span className="chip">{task.time}</span>}
+          {task.repeat !== "Aucune" && <span className="chip">↻ {task.repeat}</span>}
+        </div>
+        {task.subtasks.length > 0 && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            {task.subtasks.map((s) => (
+              <label key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, color: s.done ? "var(--muted)" : "var(--ink)", cursor: "pointer" }}>
+                <input type="checkbox" checked={s.done} onChange={() => onSub(task.id, s.id)} /> {s.name}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Tâches ---------- */
+function TasksPage({ tasks, onToggle, onSub, onNew }) {
+  const [view, setView] = useState("today");
+  const [prio, setPrio] = useState("toutes");
+  const [cat, setCat] = useState("toutes");
+  const t = todayISO();
+  const filtered = tasks.filter((x) => {
+    if (view === "today" && (x.due !== t || x.done)) return false;
+    if (view === "upcoming" && (x.due <= t || x.done)) return false;
+    if (view === "done" && !x.done) return false;
+    if (view === "repeat" && x.repeat === "Aucune") return false;
+    if (prio !== "toutes" && x.priority !== prio) return false;
+    if (cat !== "toutes" && x.category !== cat) return false;
+    return true;
+  });
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Tâches</h1><div className="sub">Votre liste complète, sans pression.</div></div>
+        <button className="btn" onClick={onNew}>+ Nouvelle tâche</button>
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18, alignItems: "center" }}>
+        <div className="seg">
+          {[["today", "Aujourd'hui"], ["upcoming", "À venir"], ["done", "Terminées"], ["repeat", "Récurrentes"]].map(([id, name]) => (
+            <button key={id} className={view === id ? "on" : ""} onClick={() => setView(id)}>{name}</button>
+          ))}
+        </div>
+        <select value={prio} onChange={(e) => setPrio(e.target.value)} style={{ font: "inherit", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)" }}>
+          <option value="toutes">Toutes priorités</option>
+          {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ font: "inherit", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)" }}>
+          <option value="toutes">Toutes catégories</option>
+          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+        </select>
+      </div>
+      <div className="card">
+        {filtered.length === 0 && <div className="sub" style={{ padding: "16px 0" }}>Rien ici pour le moment — et c'est très bien.</div>}
+        {filtered.map((task) => <TaskRow key={task.id} task={task} onToggle={onToggle} onSub={onSub} />)}
+      </div>
+    </>
+  );
+}
+
+/* ---------- Nouvelle tâche ---------- */
+function NewTaskModal({ onClose, onSave }) {
+  const [f, setF] = useState({ name: "", desc: "", priority: "normale", due: todayISO(), time: "", repeat: "Aucune", category: "Travail", effort: "15", subtasks: [] });
+  const [sub, setSub] = useState("");
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ fontSize: 21, marginBottom: 18 }}>Nouvelle tâche</h2>
+        <div className="field"><label>Nom</label><input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Qu'aimeriez-vous accomplir ?" /></div>
+        <div className="field"><label>Description</label><textarea rows={2} value={f.desc} onChange={(e) => set("desc", e.target.value)} placeholder="Optionnel" /></div>
+        <div className="grid2">
+          <div className="field"><label>Priorité</label><select value={f.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+          <div className="field"><label>Effort estimé</label><select value={f.effort} onChange={(e) => set("effort", e.target.value)}>{EFFORTS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <div className="field"><label>Date limite</label><input type="date" value={f.due} onChange={(e) => set("due", e.target.value)} /></div>
+          <div className="field"><label>Heure (optionnelle)</label><input type="time" value={f.time} onChange={(e) => set("time", e.target.value)} /></div>
+          <div className="field"><label>Répétition</label><select value={f.repeat} onChange={(e) => set("repeat", e.target.value)}>{REPEATS.map((r) => <option key={r}>{r}</option>)}</select></div>
+          <div className="field"><label>Catégorie</label><select value={f.category} onChange={(e) => set("category", e.target.value)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+        </div>
+        <div className="field">
+          <label>Sous-tâches</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input style={{ flex: 1 }} value={sub} onChange={(e) => setSub(e.target.value)} placeholder="Ajouter une étape" onKeyDown={(e) => { if (e.key === "Enter" && sub.trim()) { set("subtasks", [...f.subtasks, { id: uid(), name: sub.trim(), done: false }]); setSub(""); } }} />
+            <button className="btn soft" onClick={() => { if (sub.trim()) { set("subtasks", [...f.subtasks, { id: uid(), name: sub.trim(), done: false }]); setSub(""); } }}>Ajouter</button>
+          </div>
+          {f.subtasks.map((s) => <div key={s.id} className="sub" style={{ marginTop: 4 }}>· {s.name}</div>)}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+          <button className="btn ghost" onClick={onClose}>Annuler</button>
+          <button className="btn" disabled={!f.name.trim()} onClick={() => onSave(f)}>Créer la tâche</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Page Tasky ---------- */
+function TaskyPage({ profile, setProfile, stage, nextStage, xp, energy, affinity, mood, history, inventory, avatarProps, motion }) {
+  const set = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
+  const capeUnlocked = inventory.find((i) => i.id === "cape")?.unlocked;
+  const pousseUnlocked = inventory.find((i) => i.id === "pousse")?.unlocked;
+  return (
+    <>
+      <div className="pagehead"><div><h1>Tasky</h1><div className="sub">Votre compagnon — palier {stage.name}, humeur {mood.toLowerCase()}.</div></div></div>
+      <div className="grid2">
+        <div className="card" style={{ display: "grid", placeItems: "center", padding: 32 }}>
+          <TaskyAvatar {...avatarProps} size={190} floating={motion === "on"} />
+          <div className="display" style={{ fontSize: 19, marginTop: 10 }}>{stage.name}</div>
+          {nextStage && <div className="sub">Prochain palier : {nextStage.name} à {nextStage.min} XP</div>}
+        </div>
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 16 }}>État de Tasky</h3>
+          <Stat label={`XP — ${stage.name}`} value={xp} max={nextStage ? nextStage.min : Math.max(xp, STAGES[4].min)} />
+          <Stat label="Énergie" value={energy} />
+          <Stat label="Affinité" value={affinity} />
+          <div className="chip" style={{ marginTop: 4 }}><span className="dot" />Humeur : {mood}</div>
+        </div>
+      </div>
+
+      <div className="grid2" style={{ marginTop: 18 }}>
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 12 }}>Accessoire</h3>
+          <div className="seg">
+            {ACCESSORIES.map((a) => {
+              const locked = a.id === "pousse" && !pousseUnlocked;
+              return <button key={a.id} className={profile.accessory === a.id ? "on" : ""} disabled={locked} style={locked ? { opacity: 0.35 } : {}} onClick={() => set("accessory", a.id)}>{a.name}{locked ? " 🔒" : ""}</button>;
+            })}
+          </div>
+          <h3 style={{ fontSize: 17, margin: "20px 0 12px" }}>Tenue</h3>
+          <div className="seg">
+            {OUTFITS.map((o) => {
+              const locked = o.id === "cape" && !capeUnlocked;
+              return <button key={o.id} className={profile.outfit === o.id ? "on" : ""} disabled={locked} style={locked ? { opacity: 0.35 } : {}} onClick={() => set("outfit", o.id)}>{o.name}{locked ? " 🔒" : ""}</button>;
+            })}
+          </div>
+        </div>
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 12 }}>Historique d'évolution</h3>
+          {history.map((h, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < history.length - 1 ? "1px solid var(--line)" : "none" }}>
+              <span className="dot" style={{ marginTop: 6 }} />
+              <div><div style={{ fontSize: 14, fontWeight: 500 }}>{h.text}</div><div className="sub" style={{ fontSize: 12 }}>{h.date}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- Monde ---------- */
+function WorldPage({ world, setWorld, stage, avatarProps, motion }) {
+  const biome = BIOMES.find((b) => b.id === world.biome) || BIOMES[0];
+  const ambience = AMBIENCES.find((a) => a.id === world.ambience) || AMBIENCES[1];
+  const toggleObj = (id) => setWorld((w) => ({ ...w, objects: w.objects.includes(id) ? w.objects.filter((x) => x !== id) : [...w.objects, id] }));
+  const objGlyph = { lanterne: "◍", bonsai: "♣", the: "☕", coussin: "▢", carillon: "♪" };
+  return (
+    <>
+      <div className="pagehead"><div><h1>Monde</h1><div className="sub">L'environnement de Tasky grandit avec vous.</div></div></div>
+      <div className="card scene" style={{ background: `linear-gradient(${biome.sky[0]}, ${biome.sky[1]})`, minHeight: 280 }}>
+        <div style={{ position: "absolute", inset: 0, background: ambience.overlay, transition: "background 0.8s" }} />
+        <div className="ground" />
+        <div style={{ position: "absolute", bottom: 24, left: 30, display: "flex", gap: 18, fontSize: 26, color: "#2B2B28", opacity: 0.65, zIndex: 1 }}>
+          {world.objects.map((o) => <span key={o} title={WORLD_OBJECTS.find((x) => x.id === o)?.name}>{objGlyph[o]}</span>)}
+        </div>
+        <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+          <TaskyAvatar {...avatarProps} size={140} floating={motion === "on"} />
+          <div className="chip" style={{ background: "rgba(255,255,255,0.7)", border: "none" }}>{biome.name} · {ambience.name}</div>
+        </div>
+      </div>
+
+      <div className="grid2" style={{ marginTop: 18 }}>
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 12 }}>Biome</h3>
+          <div className="grid3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            {BIOMES.map((b) => {
+              const locked = stage.id < b.stage;
+              return (
+                <button key={b.id} className={`pick ${world.biome === b.id ? "on" : ""}`} disabled={locked} style={locked ? { opacity: 0.4 } : {}} onClick={() => setWorld((w) => ({ ...w, biome: b.id }))}>
+                  <div className="pname">{b.name}</div>
+                  <div className="pdesc">{locked ? `Se débloque au palier ${STAGES[b.stage].name}` : "Disponible"}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 12 }}>Ambiance</h3>
+          <div className="seg" style={{ marginBottom: 20 }}>
+            {AMBIENCES.map((a) => <button key={a.id} className={world.ambience === a.id ? "on" : ""} onClick={() => setWorld((w) => ({ ...w, ambience: a.id }))}>{a.name}</button>)}
+          </div>
+          <h3 style={{ fontSize: 17, marginBottom: 12 }}>Objets placés</h3>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {WORLD_OBJECTS.map((o) => {
+              const locked = stage.id < o.stage;
+              const on = world.objects.includes(o.id);
+              return <button key={o.id} className="chip" disabled={locked} style={{ cursor: locked ? "default" : "pointer", opacity: locked ? 0.4 : 1, background: on ? "var(--tint)" : undefined, borderColor: on ? "var(--accent)" : undefined }} onClick={() => !locked && toggleObj(o.id)}>{objGlyph[o.id]} {o.name}{locked ? " 🔒" : ""}</button>;
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- Rituels ---------- */
+function RitualsPage({ rituals, onCheck, onBreath, onGratitude }) {
+  const [grat, setGrat] = useState("");
+  return (
+    <>
+      <div className="pagehead"><div><h1>Rituels</h1><div className="sub">De petites routines calmes — rien d'obligatoire.</div></div></div>
+      <div className="grid2">
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 8 }}>Aujourd'hui</h3>
+          {rituals.map((r) => (
+            <div key={r.id} className="taskrow">
+              <button className={`check ${r.done ? "on" : ""}`} onClick={() => onCheck(r.id)} aria-label="Cocher le rituel">
+                {r.done && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round"><path d="M5 13l4 4 10-11" /></svg>}
+              </button>
+              <div className={`tname ${r.done ? "done" : ""}`} style={{ paddingTop: 3 }}>{r.name}</div>
+            </div>
+          ))}
+        </div>
+        <div className="card">
+          <h3 style={{ fontSize: 17, marginBottom: 10 }}>Pause respiration</h3>
+          <div className="sub" style={{ marginBottom: 14 }}>Un cycle lent, guidé par Tasky. Une minute suffit.</div>
+          <button className="btn soft" onClick={onBreath}>Commencer la respiration</button>
+          <h3 style={{ fontSize: 17, margin: "24px 0 10px" }}>Gratitude du jour</h3>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input style={{ flex: 1, font: "inherit", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--ink)" }} value={grat} onChange={(e) => setGrat(e.target.value)} placeholder="Une chose qui vous a fait du bien…" />
+            <button className="btn" disabled={!grat.trim()} onClick={() => { onGratitude(grat.trim()); setGrat(""); }}>Noter</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- Journal ---------- */
+function JournalPage({ journal, onAdd }) {
+  const [m, setM] = useState("Serein");
+  const [note, setNote] = useState("");
+  return (
+    <>
+      <div className="pagehead"><div><h1>Journal</h1><div className="sub">Humeurs, petites notes, souvenirs partagés avec Tasky.</div></div></div>
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h3 style={{ fontSize: 17, marginBottom: 12 }}>Comment vous sentez-vous ?</h3>
+        <div className="seg" style={{ marginBottom: 14 }}>
+          {MOODS.map((x) => <button key={x} className={m === x ? "on" : ""} onClick={() => setM(x)}>{x}</button>)}
+        </div>
+        <div className="field"><textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Une note courte sur ce moment… (optionnel)" /></div>
+        <button className="btn" onClick={() => { onAdd({ mood: m, note: note.trim() || "—" }); setNote(""); }}>Garder ce moment</button>
+      </div>
+      <div className="card">
+        <h3 style={{ fontSize: 17, marginBottom: 8 }}>Souvenirs</h3>
+        {journal.length === 0 && <div className="sub" style={{ padding: "12px 0" }}>Votre premier souvenir vous attend.</div>}
+        {journal.map((j) => (
+          <div key={j.id} className="taskrow">
+            <span className="dot" style={{ marginTop: 8 }} />
+            <div><div style={{ fontWeight: 600, fontSize: 14.5 }}>{j.mood} <span className="sub" style={{ fontWeight: 400 }}>· {j.date}</span></div><div className="sub" style={{ marginTop: 2 }}>{j.note}</div></div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ---------- Inventaire ---------- */
+function InventoryPage({ inventory }) {
+  const types = ["Tous", "Nourriture", "Vêtements", "Décorations", "Objets émotionnels"];
+  const [tab, setTab] = useState("Tous");
+  const items = inventory.filter((i) => tab === "Tous" || i.type === tab);
+  return (
+    <>
+      <div className="pagehead"><div><h1>Inventaire</h1><div className="sub">Tout ce que vous avez réuni pour Tasky.</div></div></div>
+      <div className="seg" style={{ marginBottom: 18 }}>
+        {types.map((x) => <button key={x} className={tab === x ? "on" : ""} onClick={() => setTab(x)}>{x}</button>)}
+      </div>
+      <div className="grid3">
+        {items.map((i) => (
+          <div key={i.id} className="card" style={{ opacity: i.unlocked ? 1 : 0.45 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{i.name} {!i.unlocked && "🔒"}</div>
+            <div className="chip" style={{ margin: "8px 0" }}>{i.type}</div>
+            <div className="sub">{i.desc}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ---------- Réglages ---------- */
+function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, notifs, setNotifs }) {
+  const Row = ({ label, sub, children }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: "1px solid var(--line)", gap: 16, flexWrap: "wrap" }}>
+      <div><div style={{ fontWeight: 600, fontSize: 15 }}>{label}</div><div className="sub">{sub}</div></div>
+      {children}
+    </div>
+  );
+  return (
+    <>
+      <div className="pagehead"><div><h1>Réglages</h1><div className="sub">Ajustez TASKY à votre rythme.</div></div></div>
+      <div className="card">
+        <Row label="Thème" sub="Clair ou sombre.">
+          <div className="seg"><button className={theme === "light" ? "on" : ""} onClick={() => setTheme("light")}>Clair</button><button className={theme === "dark" ? "on" : ""} onClick={() => setTheme("dark")}>Sombre</button></div>
+        </Row>
+        <Row label="Animations" sub="Réduisez les mouvements si vous préférez le calme total.">
+          <div className="seg"><button className={motion === "on" ? "on" : ""} onClick={() => setMotion("on")}>Activées</button><button className={motion === "off" ? "on" : ""} onClick={() => setMotion("off")}>Réduites</button></div>
+        </Row>
+        <Row label="Sons" sub="Sons doux lors des interactions (à venir).">
+          <div className="seg"><button className={sounds ? "on" : ""} onClick={() => setSounds(true)}>Activés</button><button className={!sounds ? "on" : ""} onClick={() => setSounds(false)}>Coupés</button></div>
+        </Row>
+        <Row label="Notifications douces" sub="Jamais de culpabilisation — seulement des invitations.">
+          <div className="seg"><button className={notifs ? "on" : ""} onClick={() => setNotifs(true)}>Activées</button><button className={!notifs ? "on" : ""} onClick={() => setNotifs(false)}>Coupées</button></div>
+        </Row>
+        <div style={{ paddingTop: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>Visuels de Tasky</div>
+          <div className="sub">Les visuels actuels sont des placeholders. Remplacez le composant <code>TaskyAvatar</code> par vos propres assets — les props (silhouette, regard, accessoire, tenue, humeur, palier) resteront identiques.</div>
+        </div>
+      </div>
+    </>
+  );
+}
