@@ -66,12 +66,17 @@ const STAGES = [
 
 const BIOMES = [
   { id: "chambre", name: "Chambre cosy", stage: 0, sky: ["#F3E9DC", "#E8D5C0"] },
-  { id: "campagne", name: "Campagne", stage: 0, sky: ["#DCE8D4", "#C5D8B8"] },
-  { id: "japon", name: "Campagne japonaise", stage: 2, sky: ["#DDE4EC", "#C8D4E0"] },
-  { id: "retro", name: "Ville rétro", stage: 3, sky: ["#EAD9C8", "#D9BBA4"] },
-  { id: "futur", name: "Ville futuriste", stage: 3, sky: ["#E3E2F4", "#CBCBEA"] },
-  { id: "jardin", name: "Jardin apaisant", stage: 4, sky: ["#E2EFE4", "#C9E2CE"] },
+  { id: "campagne", name: "Campagne", stage: 0, sky: ["#DCE8D4", "#C5D8B8"], image: "campagne.jpg" },
+  { id: "japon", name: "Campagne japonaise", stage: 2, sky: ["#DDE4EC", "#C8D4E0"], image: "japon.jpg" },
+  { id: "retro", name: "Ville rétro", stage: 3, sky: ["#EAD9C8", "#D9BBA4"], image: "retro.jpg" },
+  { id: "futur", name: "Ville futuriste", stage: 3, sky: ["#E3E2F4", "#CBCBEA"], image: "futur.jpg" },
+  { id: "jardin", name: "Jardin apaisant", stage: 4, sky: ["#E2EFE4", "#C9E2CE"], image: "jardin.jpg" },
 ];
+/* Fond d'une scène : image du biome si présente (sinon dégradé) */
+const biomeBg = (b) =>
+  b.image
+    ? `url(${import.meta.env.BASE_URL}biomes/${b.image}) center/cover no-repeat, linear-gradient(${b.sky[0]}, ${b.sky[1]})`
+    : `linear-gradient(${b.sky[0]}, ${b.sky[1]})`;
 const AMBIENCES = [
   { id: "aube", name: "Aube", overlay: "rgba(255,200,160,0.25)" },
   { id: "jour", name: "Jour", overlay: "rgba(255,255,255,0)" },
@@ -450,7 +455,7 @@ export default function TaskyApp() {
                 <button className="btn" onClick={() => setShowNew(true)}>+ Ajouter une tâche</button>
               </div>
               <div className="grid2">
-                <div className="card scene" style={{ background: `linear-gradient(${biome.sky[0]}, ${biome.sky[1]})` }}>
+                <div className="card scene" style={{ background: biomeBg(biome) }}>
                   <div style={{ position: "absolute", inset: 0, background: ambience.overlay }} />
                   <div className="ground" />
                   <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
@@ -728,7 +733,7 @@ function WorldPage({ world, setWorld, stage, avatarProps, motion }) {
   return (
     <>
       <div className="pagehead"><div><h1>Monde</h1><div className="sub">L'environnement de Tasky grandit avec vous.</div></div></div>
-      <div className="card scene" style={{ background: `linear-gradient(${biome.sky[0]}, ${biome.sky[1]})`, minHeight: 280 }}>
+      <div className="card scene" style={{ background: biomeBg(biome), minHeight: 280 }}>
         <div style={{ position: "absolute", inset: 0, background: ambience.overlay, transition: "background 0.8s" }} />
         <div className="ground" />
         <div style={{ position: "absolute", bottom: 24, left: 30, display: "flex", gap: 18, fontSize: 26, color: "#2B2B28", opacity: 0.65, zIndex: 1 }}>
