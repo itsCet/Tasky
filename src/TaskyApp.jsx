@@ -243,7 +243,11 @@ const css = `
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 8px); } }
 @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 .float { animation: floaty 4s ease-in-out infinite; }
-[data-motion="off"] .float, [data-motion="off"] .breath-circle, [data-motion="off"] .focus-breath { animation: none !important; }
+[data-motion="off"] .float, [data-motion="off"] .breath-circle, [data-motion="off"] .focus-breath, [data-motion="off"] .tk-breathe, [data-motion="off"] .tk-blink { animation: none !important; }
+@keyframes tkbreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes tkblink { 0%,93%,100% { transform: scaleY(1); } 96.5% { transform: scaleY(0.12); } }
+.tk-breathe { transform-box: fill-box; transform-origin: 50% 96%; animation: tkbreathe 4.6s ease-in-out infinite; }
+.tk-blink { transform-box: fill-box; transform-origin: 50% 50%; animation: tkblink 5.4s ease-in-out infinite; }
 .pick { border: 1.5px solid var(--line); background: var(--surface); border-radius: 16px; padding: 14px; cursor: pointer; text-align: left; font: inherit; color: var(--ink); transition: border-color 0.15s; }
 .pick.on { border-color: var(--accent); background: var(--tint); }
 .pick .pname { font-weight: 700; font-size: 14.5px; }
@@ -323,17 +327,23 @@ const ZONES = [
 const zoneForPage = (page) => ZONES.find((z) => z.pages.some(([id]) => id === page));
 
 /* ============================================================
-   TaskyAvatar — PLACEHOLDER MODULAIRE
-   Remplacez ce composant par vos vrais assets (même props).
-   Props : silhouette, eyes, accessory, outfit, mood, stage, size, accent
+   TaskyAvatar — MOTEUR D'AVATAR PLUGGABLE
+   L'app appelle toujours <TaskyAvatar .../> ; en interne il choisit
+   un moteur de rendu (engine). Pour brancher de vrais assets un jour :
+   ajouter un moteur (images, Lottie…) dans AVATAR_ENGINES — mêmes props,
+   rien d'autre à changer dans l'app.
+   Props : silhouette, eyes, accessory, outfit, mood, stage, size, accent, floating, engine
    ============================================================ */
-function TaskyAvatar({ silhouette = "galet", eyes = "doux", accessory = "aucun", outfit = "aucune", mood = "Serein", stage = 0, size = 150, accent = "#6B8F71", floating = true }) {
-  const bodies = {
-    galet: "M75 20 C115 20 135 55 135 90 C135 122 110 138 75 138 C40 138 15 122 15 90 C15 55 35 20 75 20 Z",
-    flamme: "M75 14 C100 38 132 62 132 96 C132 124 106 140 75 140 C44 140 18 124 18 96 C18 62 50 38 75 14 Z",
-    feuille: "M75 16 C120 28 136 68 128 102 C122 128 100 140 75 140 C50 140 28 128 22 102 C14 68 30 28 75 16 Z",
-    carre: "M40 24 H110 C126 24 134 36 134 56 V104 C134 126 122 138 100 138 H50 C28 138 16 126 16 104 V56 C16 36 24 24 40 24 Z",
-  };
+const AVATAR_BODIES = {
+  galet: "M75 20 C115 20 135 55 135 90 C135 122 110 138 75 138 C40 138 15 122 15 90 C15 55 35 20 75 20 Z",
+  flamme: "M75 14 C100 38 132 62 132 96 C132 124 106 140 75 140 C44 140 18 124 18 96 C18 62 50 38 75 14 Z",
+  feuille: "M75 16 C120 28 136 68 128 102 C122 128 100 140 75 140 C50 140 28 128 22 102 C14 68 30 28 75 16 Z",
+  carre: "M40 24 H110 C126 24 134 36 134 56 V104 C134 126 122 138 100 138 H50 C28 138 16 126 16 104 V56 C16 36 24 24 40 24 Z",
+};
+
+/* Moteur SVG — vectoriel, thémable, animé (respiration + clignement) */
+function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucun", outfit = "aucune", mood = "Serein", stage = 0, size = 150, accent = "#6B8F71", floating = true }) {
+  const body = AVATAR_BODIES[silhouette] || AVATAR_BODIES.galet;
   const happy = ["Joyeux", "Rayonnant"].includes(mood);
   const eyeY = 78;
   const renderEyes = () => {
@@ -342,27 +352,45 @@ function TaskyAvatar({ silhouette = "galet", eyes = "doux", accessory = "aucun",
     if (eyes === "calme") return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round"><path d={`M48 ${eyeY} h14`} /><path d={`M88 ${eyeY} h14`} /></g>);
     return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round" fill="none"><path d={`M48 ${eyeY+2} q7 ${happy ? -9 : -6} 14 0`} /><path d={`M88 ${eyeY+2} q7 ${happy ? -9 : -6} 14 0`} /></g>);
   };
+  const gid = useRef("tk" + Math.random().toString(36).slice(2, 7)).current;
   return (
     <div className={floating ? "float" : ""} style={{ width: size, height: size }} aria-label={`Tasky, humeur ${mood}`}>
       <svg viewBox="0 0 150 150" width={size} height={size}>
+        <defs>
+          <linearGradient id={`shine-${gid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity="0.4" /><stop offset="0.45" stopColor="#fff" stopOpacity="0" /></linearGradient>
+          <linearGradient id={`shade-${gid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0.55" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity="0.16" /></linearGradient>
+          <clipPath id={`clip-${gid}`}><path d={body} /></clipPath>
+        </defs>
         {stage >= 4 && <circle cx="75" cy="80" r="68" fill={accent} opacity="0.12" />}
         <ellipse cx="75" cy="142" rx="42" ry="6" fill="#000" opacity="0.08" />
-        <path d={bodies[silhouette] || bodies.galet} fill={accent} opacity="0.88" />
-        <path d={bodies[silhouette] || bodies.galet} fill="url(#shine)" />
-        <defs><linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity="0.35" /><stop offset="0.5" stopColor="#fff" stopOpacity="0" /></linearGradient></defs>
-        {renderEyes()}
-        <path d={`M66 ${happy ? 94 : 96} q9 ${happy ? 10 : 6} 18 0`} stroke="#2B2B28" strokeWidth="3.2" fill="none" strokeLinecap="round" />
-        {happy && <g fill="#E08A6D" opacity="0.5"><circle cx="44" cy="92" r="5.5" /><circle cx="106" cy="92" r="5.5" /></g>}
-        {/* Slot accessoire (tête) */}
-        {accessory === "pousse" && <g><path d="M75 22 q-2 -12 -10 -15 q12 -1 12 13" fill="#6B8F71" /><path d="M77 22 q2 -12 10 -15 q-12 -1 -12 13" fill="#8FB08A" /></g>}
-        {accessory === "beret" && <path d="M42 34 q33 -26 66 0 q-8 -8 -33 -8 t-33 8z" fill="#2B2B28" opacity="0.8" />}
-        {accessory === "antenne" && <g><line x1="75" y1="22" x2="75" y2="6" stroke="#2B2B28" strokeWidth="2.6" /><circle cx="75" cy="5" r="4.5" fill={accent} /></g>}
-        {/* Slot tenue (bas) */}
-        {outfit === "echarpe" && <path d="M40 108 q35 14 70 0 l-3 12 q-32 12 -64 0 z" fill={accent} opacity="0.55" />}
-        {outfit === "cape" && <path d="M30 70 q-14 40 4 62 q40 10 82 0 q18 -22 4 -62 q-45 -16 -90 0z" fill={accent} opacity="0.3" />}
+        <g className="tk-breathe">
+          <path d={body} fill={accent} />
+          <g clipPath={`url(#clip-${gid})`}>
+            <path d={body} fill={`url(#shade-${gid})`} />
+            <ellipse cx="56" cy="52" rx="30" ry="20" fill="#fff" opacity="0.22" />
+          </g>
+          <path d={body} fill={`url(#shine-${gid})`} />
+          {/* Slot tenue (bas) */}
+          {outfit === "echarpe" && <path d="M40 108 q35 14 70 0 l-3 12 q-32 12 -64 0 z" fill={accent} opacity="0.6" />}
+          {outfit === "cape" && <path d="M30 70 q-14 40 4 62 q40 10 82 0 q18 -22 4 -62 q-45 -16 -90 0z" fill={accent} opacity="0.32" />}
+          <g className="tk-blink">{renderEyes()}</g>
+          <path d={`M66 ${happy ? 94 : 96} q9 ${happy ? 10 : 6} 18 0`} stroke="#2B2B28" strokeWidth="3.2" fill="none" strokeLinecap="round" />
+          {happy && <g fill="#E08A6D" opacity="0.5"><circle cx="44" cy="92" r="5.5" /><circle cx="106" cy="92" r="5.5" /></g>}
+          {/* Slot accessoire (tête) */}
+          {accessory === "pousse" && <g><path d="M75 22 q-2 -12 -10 -15 q12 -1 12 13" fill="#6B8F71" /><path d="M77 22 q2 -12 10 -15 q-12 -1 -12 13" fill="#8FB08A" /></g>}
+          {accessory === "beret" && <path d="M42 34 q33 -26 66 0 q-8 -8 -33 -8 t-33 8z" fill="#2B2B28" opacity="0.8" />}
+          {accessory === "antenne" && <g><line x1="75" y1="22" x2="75" y2="6" stroke="#2B2B28" strokeWidth="2.6" /><circle cx="75" cy="5" r="4.5" fill={accent} /></g>}
+        </g>
       </svg>
     </div>
   );
+}
+
+/* Registre des moteurs d'avatar — ajouter ici "images" / "lottie" plus tard */
+const AVATAR_ENGINES = { svg: TaskyAvatarSVG };
+function TaskyAvatar(props) {
+  const Engine = AVATAR_ENGINES[props.engine] || AVATAR_ENGINES.svg;
+  return <Engine {...props} />;
 }
 
 /* ---------- Petits composants ---------- */
