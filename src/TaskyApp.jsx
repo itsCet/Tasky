@@ -66,11 +66,11 @@ const STAGES = [
 
 const BIOMES = [
   { id: "chambre", name: "Chambre cosy", stage: 0, sky: ["#F3E9DC", "#E8D5C0"] },
-  { id: "campagne", name: "Campagne", stage: 0, sky: ["#DCE8D4", "#C5D8B8"], image: "campagne.jpg" },
-  { id: "japon", name: "Campagne japonaise", stage: 2, sky: ["#DDE4EC", "#C8D4E0"], image: "japon.jpg" },
-  { id: "retro", name: "Ville rétro", stage: 3, sky: ["#EAD9C8", "#D9BBA4"], image: "retro.jpg" },
-  { id: "futur", name: "Ville futuriste", stage: 3, sky: ["#E3E2F4", "#CBCBEA"], image: "futur.jpg" },
-  { id: "jardin", name: "Jardin apaisant", stage: 4, sky: ["#E2EFE4", "#C9E2CE"], image: "jardin.jpg" },
+  { id: "campagne", name: "Campagne", stage: 0, sky: ["#DCE8D4", "#C5D8B8"], image: "campagne.png" },
+  { id: "japon", name: "Campagne japonaise", stage: 2, sky: ["#DDE4EC", "#C8D4E0"], image: "japon.png" },
+  { id: "retro", name: "Ville rétro", stage: 3, sky: ["#EAD9C8", "#D9BBA4"], image: "retro.png" },
+  { id: "futur", name: "Ville futuriste", stage: 3, sky: ["#E3E2F4", "#CBCBEA"], image: "futur.png" },
+  { id: "jardin", name: "Jardin apaisant", stage: 4, sky: ["#E2EFE4", "#C9E2CE"], image: "jardin.png" },
 ];
 /* Fond d'une scène : image du biome si présente (sinon dégradé) */
 const biomeBg = (b) =>
