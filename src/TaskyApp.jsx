@@ -243,7 +243,7 @@ const css = `
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 8px); } }
 @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 .float { animation: floaty 4s ease-in-out infinite; }
-[data-motion="off"] .float, [data-motion="off"] .breath-circle { animation: none !important; }
+[data-motion="off"] .float, [data-motion="off"] .breath-circle, [data-motion="off"] .focus-breath { animation: none !important; }
 .pick { border: 1.5px solid var(--line); background: var(--surface); border-radius: 16px; padding: 14px; cursor: pointer; text-align: left; font: inherit; color: var(--ink); transition: border-color 0.15s; }
 .pick.on { border-color: var(--accent); background: var(--tint); }
 .pick .pname { font-weight: 700; font-size: 14.5px; }
@@ -256,6 +256,14 @@ const css = `
 .fab { position: fixed; right: 26px; bottom: 26px; width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 26px; cursor: pointer; box-shadow: var(--shadow); z-index: 40; }
 .breath-circle { width: 120px; height: 120px; border-radius: 50%; background: var(--tint); border: 2px solid var(--accent); animation: breath 8s ease-in-out infinite; }
 @keyframes breath { 0%,100% { transform: scale(0.7); } 50% { transform: scale(1.15); } }
+.focusmode { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: linear-gradient(var(--tint), var(--bg)); padding: max(20px, env(safe-area-inset-top)) 22px max(26px, env(safe-area-inset-bottom)); }
+.focusmode .fm-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.focusmode .fm-x { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+.focusmode .fm-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; }
+.focus-rings { position: relative; width: 230px; height: 230px; display: grid; place-items: center; }
+.focus-rings .ring { position: absolute; border-radius: 50%; }
+.focus-breath { animation: breath 9s ease-in-out infinite; }
+.fm-time { font-family: 'Shippori Mincho', serif; font-size: 42px; letter-spacing: 0.02em; color: var(--ink); }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .cal-dow { text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0 6px; }
 .cal-cell { aspect-ratio: 1 / 1; border: 1px solid var(--line); border-radius: 12px; background: var(--surface2); padding: 6px; cursor: pointer; display: flex; flex-direction: column; font: inherit; color: var(--ink); transition: border-color 0.15s, background 0.15s; }
@@ -394,6 +402,7 @@ export default function TaskyApp() {
   const [newTaskDate, setNewTaskDate] = useState(null);
   const [toast, setToast] = useState(null);
   const [breathing, setBreathing] = useState(false);
+  const [focusTask, setFocusTask] = useState(null);
   const prevStage = useRef(stageFor(saved.xp ?? 0).id);
 
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
@@ -563,14 +572,14 @@ export default function TaskyApp() {
                 <h3 style={{ fontSize: 18, marginBottom: 6 }}>Tâches du jour</h3>
                 {todayTasks.length === 0 && <div className="sub" style={{ padding: "14px 0" }}>Tout est calme. Ajoutez une tâche, ou profitez du moment avec Tasky.</div>}
                 {[...todayTasks].sort((a, b) => (a.priority === "focus" ? -1 : 1)).map((task) => (
-                  <TaskRow key={task.id} task={task} onToggle={completeTask} onSub={toggleSub} />
+                  <TaskRow key={task.id} task={task} onToggle={completeTask} onSub={toggleSub} onFocus={setFocusTask} />
                 ))}
               </div>
             </>
           )}
 
-          {page === "tasks" && <TasksPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={() => openNew()} />}
-          {page === "calendar" && <CalendarPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={openNew} />}
+          {page === "tasks" && <TasksPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={() => openNew()} onFocus={setFocusTask} />}
+          {page === "calendar" && <CalendarPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={openNew} onFocus={setFocusTask} />}
           {page === "tasky" && <TaskyPage profile={profile} setProfile={setProfile} stage={stage} nextStage={nextStage} xp={xp} energy={energy} affinity={affinity} mood={mood} history={history} inventory={inventory} avatarProps={avatarProps} motion={motion} />}
           {page === "world" && <WorldPage world={world} setWorld={setWorld} stage={stage} avatarProps={avatarProps} motion={motion} />}
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} />}
@@ -587,6 +596,7 @@ export default function TaskyApp() {
       </nav>
       <button className="fab" onClick={() => openNew()} aria-label="Ajouter une tâche">+</button>
 
+      {focusTask && <FocusMode task={focusTask} avatarProps={avatarProps} accent={style.accent} motion={motion} onClose={() => setFocusTask(null)} onComplete={() => { completeTask(focusTask.id); setFocusTask(null); }} />}
       {showNew && <NewTaskModal onClose={closeNew} onSave={addTask} initialDue={newTaskDate} />}
       {breathing && (
         <div className="overlay" onClick={() => setBreathing(false)}>
@@ -647,7 +657,7 @@ function Onboarding({ profile, setProfile, onDone }) {
 
 /* ---------- Ligne de tâche ---------- */
 /* Geste signature (mobile) : glisser vers la droite pour « offrir » la tâche à Tasky */
-function TaskRow({ task, onToggle, onSub }) {
+function TaskRow({ task, onToggle, onSub, onFocus }) {
   const p = PRIORITIES.find((x) => x.id === task.priority);
   const e = EFFORTS.find((x) => x.id === task.effort);
   const [dx, setDx] = useState(0);
@@ -714,12 +724,71 @@ function TaskRow({ task, onToggle, onSub }) {
           </div>
         )}
       </div>
+      {onFocus && !task.done && (
+        <button onClick={() => onFocus(task)} aria-label="Démarrer le focus" title="Focus — une seule chose" style={{ flex: "none", alignSelf: "center", width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--accent)", display: "grid", placeItems: "center", cursor: "pointer" }}>
+          <Ic d="M7 5l12 7-12 7z" size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Mode Focus — « une seule chose » ---------- */
+function FocusMode({ task, avatarProps, accent, motion, onClose, onComplete }) {
+  const mins = { "5": 5, "15": 15, "30": 30, deep: 25 }[task.effort] || 15;
+  const [left, setLeft] = useState(mins * 60);
+  const [running, setRunning] = useState(true);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+  const done = left === 0;
+  const mm = String(Math.floor(left / 60)).padStart(2, "0");
+  const ss = String(left % 60).padStart(2, "0");
+  const offer = () => { offerFeedback(); onComplete(); };
+  return (
+    <div className="focusmode">
+      <div className="fm-top">
+        <div>
+          <div className="display" style={{ fontSize: 16 }}>Focus</div>
+          <div className="sub" style={{ marginTop: 0 }}>une seule chose</div>
+        </div>
+        <button className="fm-x" onClick={onClose} aria-label="Quitter le focus"><Ic d="M6 6l12 12M18 6L6 18" size={18} /></button>
+      </div>
+
+      <div className="fm-center">
+        <div className="focus-rings">
+          <span className="ring" style={{ inset: 0, background: accent, opacity: 0.08 }} />
+          <span className={`ring ${motion === "on" ? "focus-breath" : ""}`} style={{ width: 150, height: 150, border: `2px solid ${accent}`, opacity: 0.45 }} />
+          <TaskyAvatar {...avatarProps} size={108} floating={false} />
+        </div>
+
+        <div className="sub" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 0 }}>
+          <Ic d="M3 12h4l2-7 4 14 2-7h4" size={16} /> {done ? "Beau travail — offre-la à Tasky" : "inspire… expire… avec Tasky"}
+        </div>
+
+        <div>
+          <div className="sub" style={{ marginTop: 0 }}>en cours</div>
+          <div className="display" style={{ fontSize: 21, marginTop: 2 }}>{task.name}</div>
+          {task.desc && <div className="sub" style={{ marginTop: 2 }}>{task.desc}</div>}
+        </div>
+
+        <div className="fm-time" style={done ? { color: accent } : {}}>{mm}:{ss}</div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <button className="btn" onClick={offer} style={{ width: "100%", padding: 15, fontSize: 15 }}>✦ Offrir à Tasky</button>
+        <button onClick={() => setRunning((r) => !r)} style={{ border: "none", background: "transparent", color: "var(--muted)", font: "inherit", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          {running ? <><Ic d="M8 5v14M16 5v14" size={15} /> mettre en pause</> : <><Ic d="M7 5l12 7-12 7z" size={15} /> reprendre</>}
+        </button>
+      </div>
     </div>
   );
 }
 
 /* ---------- Tâches ---------- */
-function TasksPage({ tasks, onToggle, onSub, onNew }) {
+function TasksPage({ tasks, onToggle, onSub, onNew, onFocus }) {
   const [view, setView] = useState("today");
   const [prio, setPrio] = useState("toutes");
   const [cat, setCat] = useState("toutes");
@@ -756,7 +825,7 @@ function TasksPage({ tasks, onToggle, onSub, onNew }) {
       </div>
       <div className="card">
         {filtered.length === 0 && <div className="sub" style={{ padding: "16px 0" }}>Rien ici pour le moment — et c'est très bien.</div>}
-        {filtered.map((task) => <TaskRow key={task.id} task={task} onToggle={onToggle} onSub={onSub} />)}
+        {filtered.map((task) => <TaskRow key={task.id} task={task} onToggle={onToggle} onSub={onSub} onFocus={onFocus} />)}
       </div>
     </>
   );
@@ -767,7 +836,7 @@ const CAL_WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const CAL_MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-function CalendarPage({ tasks, onToggle, onSub, onNew }) {
+function CalendarPage({ tasks, onToggle, onSub, onNew, onFocus }) {
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selected, setSelected] = useState(ymdLocal(today));
@@ -826,7 +895,7 @@ function CalendarPage({ tasks, onToggle, onSub, onNew }) {
             <button className="btn soft" onClick={() => onNew(selected)}>+ En ajouter une</button>
           </div>
         )}
-        {selTasks.map((task) => <TaskRow key={task.id} task={task} onToggle={onToggle} onSub={onSub} />)}
+        {selTasks.map((task) => <TaskRow key={task.id} task={task} onToggle={onToggle} onSub={onSub} onFocus={onFocus} />)}
       </div>
     </>
   );
