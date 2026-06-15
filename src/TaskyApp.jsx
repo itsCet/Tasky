@@ -146,6 +146,40 @@ function moodFor(affinity, energy) {
   return MOODS[Math.min(MOODS.length - 1, Math.floor(score / 22))];
 }
 
+/* ---------- Retour sensoriel (son doux + haptique) ---------- */
+let SOUND_ON = true;
+let MOTION_ON = true;
+let _audioCtx = null;
+function playChime() {
+  try {
+    _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _audioCtx;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    [587.33, 880].forEach((freq, i) => {
+      const t = now + i * 0.085;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.11, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.5);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t);
+      o.stop(t + 0.55);
+    });
+  } catch {
+    /* audio indisponible : on ignore */
+  }
+}
+/* Récompense tactile : appelée quand on offre une tâche à Tasky */
+function offerFeedback() {
+  if (SOUND_ON) playChime();
+  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(14);
+}
+
 /* ---------- Styles ---------- */
 
 const css = `
@@ -369,6 +403,10 @@ export default function TaskyApp() {
     saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history });
   }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history]);
 
+  /* Préférences accessibles au retour sensoriel (son/haptique des TaskRow) */
+  useEffect(() => { SOUND_ON = sounds; }, [sounds]);
+  useEffect(() => { MOTION_ON = motion === "on"; }, [motion]);
+
   const completeTask = (id) => {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
@@ -573,11 +611,51 @@ function Onboarding({ profile, setProfile, onDone }) {
 }
 
 /* ---------- Ligne de tâche ---------- */
+/* Geste signature (mobile) : glisser vers la droite pour « offrir » la tâche à Tasky */
 function TaskRow({ task, onToggle, onSub }) {
   const p = PRIORITIES.find((x) => x.id === task.priority);
   const e = EFFORTS.find((x) => x.id === task.effort);
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [offering, setOffering] = useState(false);
+  const start = useRef(null);
+  const canSwipe = !task.done && !offering;
+
+  const begin = (x, y) => { if (!canSwipe) return; start.current = { x, y, decided: false, horiz: false, dx: 0 }; setDragging(true); };
+  const move = (x, y) => {
+    const s = start.current; if (!s) return;
+    const ddx = x - s.x, ddy = y - s.y;
+    if (!s.decided && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) { s.decided = true; s.horiz = Math.abs(ddx) > Math.abs(ddy); }
+    if (s.horiz) { s.dx = Math.max(0, ddx); setDx(s.dx); }
+  };
+  const end = () => {
+    const s = start.current; start.current = null; setDragging(false);
+    if (s && s.horiz && s.dx > 78) {
+      offerFeedback();
+      setOffering(true);
+      setTimeout(() => onToggle(task.id), MOTION_ON ? 400 : 0);
+    } else {
+      setDx(0);
+    }
+  };
+
+  const transform = offering ? "translate(46px, -130px) scale(0.82)" : `translateX(${dx}px)`;
+  const opacity = offering ? 0 : Math.max(0.15, 1 - dx / 320);
+  const transition = dragging ? "none" : "transform 0.4s cubic-bezier(.2,.8,.2,1), opacity 0.4s ease";
+
   return (
-    <div className="taskrow">
+    <div
+      className="taskrow"
+      style={{ transform, opacity, transition, background: "var(--surface)", touchAction: canSwipe ? "pan-y" : undefined, willChange: "transform", position: "relative", zIndex: offering ? 3 : 1 }}
+      onTouchStart={(ev) => begin(ev.touches[0].clientX, ev.touches[0].clientY)}
+      onTouchMove={(ev) => move(ev.touches[0].clientX, ev.touches[0].clientY)}
+      onTouchEnd={end}
+    >
+      {canSwipe && dx > 4 && (
+        <div style={{ position: "absolute", left: -2, top: 0, bottom: 0, display: "flex", alignItems: "center", gap: 6, color: "var(--accent)", fontSize: 13, fontWeight: 600, opacity: Math.min(1, dx / 78), transform: "translateX(-100%)", paddingRight: 12, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          Offrir à Tasky ✦
+        </div>
+      )}
       <button className={`check ${task.done ? "on" : ""}`} onClick={() => onToggle(task.id)} aria-label="Terminer la tâche">
         {task.done && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round"><path d="M5 13l4 4 10-11" /></svg>}
       </button>
