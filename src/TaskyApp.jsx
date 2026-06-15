@@ -220,6 +220,16 @@ const css = `
 .fab { position: fixed; right: 26px; bottom: 26px; width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 26px; cursor: pointer; box-shadow: var(--shadow); z-index: 40; }
 .breath-circle { width: 120px; height: 120px; border-radius: 50%; background: var(--tint); border: 2px solid var(--accent); animation: breath 8s ease-in-out infinite; }
 @keyframes breath { 0%,100% { transform: scale(0.7); } 50% { transform: scale(1.15); } }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-dow { text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0 6px; }
+.cal-cell { aspect-ratio: 1 / 1; border: 1px solid var(--line); border-radius: 12px; background: var(--surface2); padding: 6px; cursor: pointer; display: flex; flex-direction: column; font: inherit; color: var(--ink); transition: border-color 0.15s, background 0.15s; }
+.cal-cell.muted { opacity: 0.35; }
+.cal-cell.today { border-color: var(--accent); }
+.cal-cell.today .dnum { color: var(--accent); }
+.cal-cell.sel { background: var(--tint); border-color: var(--accent); }
+.cal-cell .dnum { font-size: 13px; font-weight: 600; }
+.cal-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: auto; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 @media (max-width: 820px) {
   .side { display: none; }
   .grid2, .grid3 { grid-template-columns: 1fr; }
@@ -238,6 +248,7 @@ const Ic = ({ d, size = 18 }) => (
 const ICONS = {
   today: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4M12 8a4 4 0 100 8 4 4 0 000-8z",
   tasks: "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2",
+  calendar: "M4 5h16a1 1 0 011 1v13a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zM3 9h18M8 3v4M16 3v4",
   tasky: "M12 4c4 0 7 3 7 7 0 4.5-3 9-7 9s-7-4.5-7-9c0-4 3-7 7-7zM9.5 11h.01M14.5 11h.01M10 15c.6.6 1.2 1 2 1s1.4-.4 2-1",
   world: "M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z",
   rituals: "M12 21c-4-2-7-5.5-7-9.5C5 7 8 4 12 4s7 3 7 7.5c0 4-3 7.5-7 9.5zM12 8v5M9.5 10.5h5",
@@ -246,7 +257,7 @@ const ICONS = {
   settings: "M12 9a3 3 0 100 6 3 3 0 000-6zM19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1c.6.5 1.3.9 2 1.2L10 21h4l.5-2.6c.7-.3 1.4-.7 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z",
 };
 const NAV = [
-  { id: "today", name: "Aujourd'hui" }, { id: "tasks", name: "Tâches" }, { id: "tasky", name: "Tasky" },
+  { id: "today", name: "Aujourd'hui" }, { id: "tasks", name: "Tâches" }, { id: "calendar", name: "Calendrier" }, { id: "tasky", name: "Tasky" },
   { id: "world", name: "Monde" }, { id: "rituals", name: "Rituels" }, { id: "journal", name: "Journal" },
   { id: "inventory", name: "Inventaire" }, { id: "settings", name: "Réglages" },
 ];
@@ -328,6 +339,7 @@ export default function TaskyApp() {
   const [inventory, setInventory] = useState(saved.inventory ?? INVENTORY_SEED);
   const [history, setHistory] = useState(saved.history ?? [{ date: todayISO(), text: "Tasky s'éveille pour la première fois." }]);
   const [showNew, setShowNew] = useState(false);
+  const [newTaskDate, setNewTaskDate] = useState(null);
   const [toast, setToast] = useState(null);
   const [breathing, setBreathing] = useState(false);
   const prevStage = useRef(stageFor(saved.xp ?? 0).id);
@@ -338,6 +350,8 @@ export default function TaskyApp() {
   const nextStage = STAGES.find((s) => s.min > xp);
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+  const openNew = (date = null) => { setNewTaskDate(date); setShowNew(true); };
+  const closeNew = () => { setShowNew(false); setNewTaskDate(null); };
 
   /* Paliers : déblocages */
   useEffect(() => {
@@ -370,7 +384,7 @@ export default function TaskyApp() {
     }
   };
   const toggleSub = (taskId, subId) => setTasks((ts) => ts.map((t) => t.id === taskId ? { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } : t));
-  const addTask = (t) => { setTasks((ts) => [{ ...t, id: uid(), done: false }, ...ts]); setShowNew(false); notify("Tâche ajoutée"); };
+  const addTask = (t) => { setTasks((ts) => [{ ...t, id: uid(), done: false }, ...ts]); closeNew(); notify("Tâche ajoutée"); };
   const checkRitual = (id) => {
     const r = rituals.find((x) => x.id === id);
     if (!r) return;
@@ -452,7 +466,7 @@ export default function TaskyApp() {
             <>
               <div className="pagehead">
                 <div><h1>Aujourd'hui</h1><div className="sub">{new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })} · Tasky est {mood.toLowerCase()}</div></div>
-                <button className="btn" onClick={() => setShowNew(true)}>+ Ajouter une tâche</button>
+                <button className="btn" onClick={() => openNew()}>+ Ajouter une tâche</button>
               </div>
               <div className="grid2">
                 <div className="card scene" style={{ background: biomeBg(biome) }}>
@@ -482,7 +496,8 @@ export default function TaskyApp() {
             </>
           )}
 
-          {page === "tasks" && <TasksPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={() => setShowNew(true)} />}
+          {page === "tasks" && <TasksPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={() => openNew()} />}
+          {page === "calendar" && <CalendarPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={openNew} />}
           {page === "tasky" && <TaskyPage profile={profile} setProfile={setProfile} stage={stage} nextStage={nextStage} xp={xp} energy={energy} affinity={affinity} mood={mood} history={history} inventory={inventory} avatarProps={avatarProps} motion={motion} />}
           {page === "world" && <WorldPage world={world} setWorld={setWorld} stage={stage} avatarProps={avatarProps} motion={motion} />}
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} />}
@@ -497,9 +512,9 @@ export default function TaskyApp() {
           <button key={n.id} className={page === n.id ? "on" : ""} onClick={() => setPage(n.id)}><Ic d={ICONS[n.id]} size={20} />{n.name}</button>
         ))}
       </nav>
-      <button className="fab" onClick={() => setShowNew(true)} aria-label="Ajouter une tâche">+</button>
+      <button className="fab" onClick={() => openNew()} aria-label="Ajouter une tâche">+</button>
 
-      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onSave={addTask} />}
+      {showNew && <NewTaskModal onClose={closeNew} onSave={addTask} initialDue={newTaskDate} />}
       {breathing && (
         <div className="overlay" onClick={() => setBreathing(false)}>
           <div style={{ textAlign: "center", color: "#fff" }}>
@@ -634,9 +649,79 @@ function TasksPage({ tasks, onToggle, onSub, onNew }) {
   );
 }
 
+/* ---------- Calendrier ---------- */
+const CAL_WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const CAL_MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function CalendarPage({ tasks, onToggle, onSub, onNew }) {
+  const today = new Date();
+  const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
+  const [selected, setSelected] = useState(ymdLocal(today));
+
+  const first = new Date(cursor.y, cursor.m, 1);
+  const startDow = (first.getDay() + 6) % 7; // semaine commençant lundi
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push({ date: new Date(cursor.y, cursor.m, 1 - (startDow - i)), inMonth: false });
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(cursor.y, cursor.m, d), inMonth: true });
+  while (cells.length % 7 !== 0) { const last = cells[cells.length - 1].date; cells.push({ date: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1), inMonth: false }); }
+
+  const byDay = {};
+  tasks.forEach((t) => { if (t.due) (byDay[t.due] = byDay[t.due] || []).push(t); });
+  const todayISOv = ymdLocal(today);
+  const selTasks = tasks.filter((t) => t.due === selected);
+  const selLabel = new Date(selected + "T00:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
+
+  const prevMonth = () => setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }));
+  const nextMonth = () => setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }));
+
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Calendrier</h1><div className="sub">Vos tâches, jour après jour.</div></div>
+        <button className="btn" onClick={() => onNew(selected)}>+ Ajouter ce jour</button>
+      </div>
+      <div className="card">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <button className="btn ghost" onClick={prevMonth} aria-label="Mois précédent">‹</button>
+          <div className="display" style={{ fontSize: 18 }}>{CAL_MONTHS[cursor.m]} {cursor.y}</div>
+          <button className="btn ghost" onClick={nextMonth} aria-label="Mois suivant">›</button>
+        </div>
+        <div className="cal">
+          {CAL_WEEKDAYS.map((d) => <div key={d} className="cal-dow">{d}</div>)}
+          {cells.map((c, i) => {
+            const iso = ymdLocal(c.date);
+            const dayTasks = byDay[iso] || [];
+            return (
+              <button key={i} className={`cal-cell ${c.inMonth ? "" : "muted"} ${iso === todayISOv ? "today" : ""} ${iso === selected ? "sel" : ""}`} onClick={() => setSelected(iso)}>
+                <span className="dnum">{c.date.getDate()}</span>
+                <span className="cal-dots">
+                  {dayTasks.slice(0, 4).map((t, j) => <span key={j} className="cal-dot" style={{ opacity: t.done ? 0.3 : 1 }} />)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 18 }}>
+        <h3 style={{ fontSize: 17, marginBottom: 6, textTransform: "capitalize" }}>{selLabel}</h3>
+        {selTasks.length === 0 && (
+          <div className="sub" style={{ padding: "12px 0", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            Aucune tâche ce jour-là.
+            <button className="btn soft" onClick={() => onNew(selected)}>+ En ajouter une</button>
+          </div>
+        )}
+        {selTasks.map((task) => <TaskRow key={task.id} task={task} onToggle={onToggle} onSub={onSub} />)}
+      </div>
+    </>
+  );
+}
+
 /* ---------- Nouvelle tâche ---------- */
-function NewTaskModal({ onClose, onSave }) {
-  const [f, setF] = useState({ name: "", desc: "", priority: "normale", due: todayISO(), time: "", repeat: "Aucune", category: "Travail", effort: "15", subtasks: [] });
+function NewTaskModal({ onClose, onSave, initialDue }) {
+  const [f, setF] = useState({ name: "", desc: "", priority: "normale", due: initialDue || todayISO(), time: "", repeat: "Aucune", category: "Travail", effort: "15", subtasks: [] });
   const [sub, setSub] = useState("");
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   return (
