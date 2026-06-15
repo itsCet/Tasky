@@ -749,15 +749,12 @@ function WorldPage({ world, setWorld, stage, avatarProps, motion }) {
         <div className="card">
           <h3 style={{ fontSize: 17, marginBottom: 12 }}>Biome</h3>
           <div className="grid3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            {BIOMES.map((b) => {
-              const locked = stage.id < b.stage;
-              return (
-                <button key={b.id} className={`pick ${world.biome === b.id ? "on" : ""}`} disabled={locked} style={locked ? { opacity: 0.4 } : {}} onClick={() => setWorld((w) => ({ ...w, biome: b.id }))}>
-                  <div className="pname">{b.name}</div>
-                  <div className="pdesc">{locked ? `Se débloque au palier ${STAGES[b.stage].name}` : "Disponible"}</div>
-                </button>
-              );
-            })}
+            {BIOMES.map((b) => (
+              <button key={b.id} className={`pick ${world.biome === b.id ? "on" : ""}`} onClick={() => setWorld((w) => ({ ...w, biome: b.id }))}>
+                <div className="pname">{b.name}</div>
+                <div className="pdesc">{world.biome === b.id ? "Actuel" : "Choisir ce fond"}</div>
+              </button>
+            ))}
           </div>
         </div>
         <div className="card">
