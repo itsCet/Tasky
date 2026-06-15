@@ -251,6 +251,8 @@ const css = `
 .statline { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .statline span:last-child { color: var(--muted); font-weight: 500; }
 .mobilenav { display: none; }
+.mobiletop { display: none; }
+.mobilesubnav { display: none; }
 .fab { position: fixed; right: 26px; bottom: 26px; width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 26px; cursor: pointer; box-shadow: var(--shadow); z-index: 40; }
 .breath-circle { width: 120px; height: 120px; border-radius: 50%; background: var(--tint); border: 2px solid var(--accent); animation: breath 8s ease-in-out infinite; }
 @keyframes breath { 0%,100% { transform: scale(0.7); } 50% { transform: scale(1.15); } }
@@ -267,7 +269,14 @@ const css = `
 @media (max-width: 820px) {
   .side { display: none; }
   .grid2, .grid3 { grid-template-columns: 1fr; }
-  .main { padding: 22px 16px 130px; }
+  .main { padding: 0 16px 130px; }
+  .mobiletop { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 30; background: var(--bg); margin: 0 -16px; padding: 14px 16px 10px; }
+  .mobiletop .brand { font-family: 'Shippori Mincho', serif; font-size: 18px; letter-spacing: 0.16em; padding: 0; }
+  .mobiletop .brand span { color: var(--accent); }
+  .mobiletop .topbtns { display: flex; gap: 6px; }
+  .mobiletop button { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+  .mobilesubnav { display: block; margin-bottom: 14px; margin-top: 6px; }
+  .pagehead { margin-top: 8px; }
   .mobilenav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 45; overflow-x: auto; }
   .mobilenav button { flex: 1; border: none; background: none; font: inherit; font-size: 10.5px; font-weight: 600; color: var(--muted); padding: 10px 6px 14px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; min-width: 64px; }
   .mobilenav button.on { color: var(--accent); }
@@ -295,6 +304,15 @@ const NAV = [
   { id: "world", name: "Monde" }, { id: "rituals", name: "Rituels" }, { id: "journal", name: "Journal" },
   { id: "inventory", name: "Inventaire" }, { id: "settings", name: "Réglages" },
 ];
+
+/* Navigation mobile : 4 zones au pouce (le reste est accessible par sous-onglets ou en touchant Tasky) */
+const ZONES = [
+  { id: "today", name: "Aujourd'hui", icon: "today", pages: [["today", "Aujourd'hui"]] },
+  { id: "temps", name: "Temps", icon: "calendar", pages: [["tasks", "Tâches"], ["calendar", "Calendrier"]] },
+  { id: "compagnon", name: "Compagnon", icon: "tasky", pages: [["tasky", "Tasky"], ["world", "Monde"], ["inventory", "Inventaire"]] },
+  { id: "toi", name: "Toi", icon: "rituals", pages: [["rituals", "Rituels"], ["journal", "Journal"]] },
+];
+const zoneForPage = (page) => ZONES.find((z) => z.pages.some(([id]) => id === page));
 
 /* ============================================================
    TaskyAvatar — PLACEHOLDER MODULAIRE
@@ -475,6 +493,7 @@ export default function TaskyApp() {
   const avatarProps = { ...profile, mood, stage: stage.id, accent: style.accent };
 
   const vars = { "--accent": style.accent, "--accent2": style.accent2, "--tint": theme === "dark" ? "rgba(255,255,255,0.07)" : style.tint };
+  const curZone = zoneForPage(page);
 
   if (!onboarded) {
     return (
@@ -500,6 +519,22 @@ export default function TaskyApp() {
         </aside>
 
         <main className="main">
+          <div className="mobiletop">
+            <div className="brand">TASK<span>Y</span></div>
+            <div className="topbtns">
+              <button aria-label="Monde" onClick={() => setPage("world")}><Ic d={ICONS.world} size={19} /></button>
+              <button aria-label="Réglages" onClick={() => setPage("settings")}><Ic d={ICONS.settings} size={19} /></button>
+            </div>
+          </div>
+          {curZone && curZone.pages.length > 1 && (
+            <div className="mobilesubnav">
+              <div className="seg">
+                {curZone.pages.map(([id, label]) => (
+                  <button key={id} className={page === id ? "on" : ""} onClick={() => setPage(id)}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {page === "today" && (
             <>
               <div className="pagehead">
@@ -510,10 +545,10 @@ export default function TaskyApp() {
                 <div className="card scene" style={{ background: biomeBg(biome) }}>
                   <div style={{ position: "absolute", inset: 0, background: ambience.overlay }} />
                   <div className="ground" />
-                  <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+                  <button onClick={() => setPage("tasky")} aria-label="Voir Tasky de près" style={{ position: "relative", zIndex: 1, textAlign: "center", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}>
                     <TaskyAvatar {...avatarProps} size={150} floating={motion === "on"} />
                     <div className="display" style={{ fontSize: 15, marginTop: 4, color: "#2B2B28" }}>{stage.name}</div>
-                  </div>
+                  </button>
                 </div>
                 <div className="card">
                   <h3 style={{ fontSize: 18, marginBottom: 16 }}>Résumé du jour</h3>
@@ -546,8 +581,8 @@ export default function TaskyApp() {
       </div>
 
       <nav className="mobilenav">
-        {NAV.map((n) => (
-          <button key={n.id} className={page === n.id ? "on" : ""} onClick={() => setPage(n.id)}><Ic d={ICONS[n.id]} size={20} />{n.name}</button>
+        {ZONES.map((z) => (
+          <button key={z.id} className={curZone?.id === z.id ? "on" : ""} onClick={() => setPage(z.pages[0][0])}><Ic d={ICONS[z.icon]} size={20} />{z.name}</button>
         ))}
       </nav>
       <button className="fab" onClick={() => openNew()} aria-label="Ajouter une tâche">+</button>
