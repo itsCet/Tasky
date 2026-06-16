@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import OneSignal from "react-onesignal";
 
 /* ============================================================
    TASKY — MVP solo, zen, compagnon évolutif
@@ -527,6 +528,24 @@ export default function TaskyApp() {
   const nextStage = STAGES.find((s) => s.min > xp);
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+
+  /* Active/désactive les notifications push via OneSignal */
+  const toggleNotifs = async (on) => {
+    setNotifs(on);
+    try {
+      if (on) {
+        const granted = await OneSignal.Notifications.requestPermission();
+        OneSignal.User?.PushSubscription?.optIn?.();
+        notify(OneSignal.Notifications.permission ? "Notifications activées ✦" : "Autorise les notifications dans ton navigateur");
+      } else {
+        OneSignal.User?.PushSubscription?.optOut?.();
+        notify("Notifications coupées");
+      }
+    } catch {
+      /* SDK indisponible (ex. hors PWA sur iOS) : on garde juste le réglage */
+    }
+  };
+
   const openNew = (date = null) => { setNewTaskDate(date); setShowNew(true); };
   const closeNew = () => { setShowNew(false); setNewTaskDate(null); };
 
@@ -762,7 +781,7 @@ export default function TaskyApp() {
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} onEvening={() => setEvening(true)} eveningDone={eveningDone === t} />}
           {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
           {page === "inventory" && <InventoryPage inventory={inventory} onUse={useItem} isActive={itemActive} />}
-          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} mode={profile.mode || "chill"} setMode={(m) => setProfile((p) => ({ ...p, mode: m }))} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
+          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={toggleNotifs} mode={profile.mode || "chill"} setMode={(m) => setProfile((p) => ({ ...p, mode: m }))} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
         </main>
       </div>
 

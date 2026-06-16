@@ -1,6 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import OneSignal from "react-onesignal";
 import TaskyApp from "./TaskyApp.jsx";
+
+// OneSignal Web Push — init une fois au démarrage (le service worker /sw.js importe le worker OneSignal)
+OneSignal.init({
+  appId: "c01dd018-11dd-43c4-afbe-a194179eb86c",
+  serviceWorkerPath: "sw.js",
+  serviceWorkerParam: { scope: "/" },
+  allowLocalhostAsSecureOrigin: true,
+}).catch(() => {});
 
 // reset minimal pour que l'app occupe tout l'écran
 const reset = document.createElement("style");
