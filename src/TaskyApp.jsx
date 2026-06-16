@@ -431,6 +431,9 @@ export default function TaskyApp() {
   const [toast, setToast] = useState(null);
   const [breathing, setBreathing] = useState(false);
   const [focusTask, setFocusTask] = useState(null);
+  const [checkin, setCheckin] = useState(saved.checkin ?? null);
+  const [eveningDone, setEveningDone] = useState(saved.eveningDone ?? null);
+  const [evening, setEvening] = useState(false);
   const prevStage = useRef(stageFor(saved.xp ?? 0).id);
 
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
@@ -455,8 +458,8 @@ export default function TaskyApp() {
 
   /* Sauvegarde automatique dans le navigateur */
   useEffect(() => {
-    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history });
-  }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history]);
+    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone });
+  }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone]);
 
   /* Préférences accessibles au retour sensoriel (son/haptique des TaskRow) */
   useEffect(() => { SOUND_ON = sounds; }, [sounds]);
@@ -489,6 +492,23 @@ export default function TaskyApp() {
     setRituals((rs) => rs.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
   };
   const addJournal = (entry) => { setJournal((j) => [{ ...entry, id: uid(), date: todayISO() }, ...j]); setAffinity((a) => Math.min(100, a + 3)); notify("Souvenir ajouté au journal"); };
+
+  /* Check-in d'humeur (1 tap) — adapte la journée */
+  const doCheckin = (level) => {
+    setCheckin({ date: todayISO(), level });
+    setAffinity((a) => Math.min(100, a + 3));
+    if (level === "haut") setEnergy((e) => Math.min(100, e + 6));
+    notify(level === "bas" ? "Pris en compte — on y va en douceur" : level === "haut" ? "Belle énergie ✦" : "Merci de partager ce moment");
+  };
+  /* Rituel du soir terminé */
+  const finishEvening = (gratitude) => {
+    if (gratitude && gratitude.trim()) addJournal({ mood: "Serein", note: `Gratitude du soir — ${gratitude.trim()}` });
+    setEveningDone(todayISO());
+    setWorld((w) => ({ ...w, ambience: "nuit" }));
+    setAffinity((a) => Math.min(100, a + 4));
+    setEvening(false);
+    notify("Bonne nuit ✦ Tasky s'endort apaisé");
+  };
 
   /* Un objet de l'inventaire est-il actuellement actif (placé / équipé) ? */
   const itemActive = (item) =>
@@ -526,6 +546,16 @@ export default function TaskyApp() {
   const totalToday = tasks.filter((x) => x.due === t).length;
   const biome = BIOMES.find((b) => b.id === world.biome) || BIOMES[0];
   const ambience = AMBIENCES.find((a) => a.id === world.ambience) || AMBIENCES[1];
+
+  /* Humeur du jour → ordre des tâches + message adaptatif */
+  const todayLevel = checkin?.date === t ? checkin.level : null;
+  const prioOrder = todayLevel === "bas" ? ["douce", "normale", "importante", "focus"] : ["focus", "importante", "normale", "douce"];
+  const sortedToday = [...todayTasks].sort((a, b) => prioOrder.indexOf(a.priority) - prioOrder.indexOf(b.priority));
+  const checkinNote = todayLevel === "bas" ? "Journée tout en douceur — commence par une petite tâche, sans pression."
+    : todayLevel === "haut" ? "Belle énergie — c'est le moment idéal pour une session Focus."
+    : todayLevel === "moyen" ? "Avance à ton rythme, une chose à la fois."
+    : null;
+  const isEvening = new Date().getHours() >= 18;
 
   const avatarProps = { ...profile, mood, stage: stage.id, accent: style.accent };
 
@@ -578,6 +608,26 @@ export default function TaskyApp() {
                 <div><h1>Aujourd'hui</h1><div className="sub">{new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })} · Tasky est {mood.toLowerCase()}</div></div>
                 <button className="btn" onClick={() => openNew()}>+ Ajouter une tâche</button>
               </div>
+
+              <div className="card" style={{ marginBottom: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>{todayLevel ? "Comment tu te sens" : "Comment te sens-tu aujourd'hui ?"}</div>
+                  <div className="seg">
+                    {[["bas", "Petite forme"], ["moyen", "Ça va"], ["haut", "En forme"]].map(([id, label]) => (
+                      <button key={id} className={todayLevel === id ? "on" : ""} onClick={() => doCheckin(id)}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                {checkinNote && <div className="sub" style={{ marginTop: 10 }}>{checkinNote}</div>}
+              </div>
+
+              {isEvening && !(eveningDone === t) && (
+                <button className="card" onClick={() => setEvening(true)} style={{ width: "100%", textAlign: "left", marginBottom: 18, cursor: "pointer", border: "1px solid var(--accent)", background: "var(--tint)", display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ color: "var(--accent)", display: "grid", placeItems: "center" }}><Ic d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" size={22} /></span>
+                  <span><span style={{ display: "block", fontWeight: 600, fontSize: 15 }}>Rituel du soir</span><span className="sub">Clore la journée en douceur avec Tasky.</span></span>
+                </button>
+              )}
+
               <div className="grid2">
                 <div className="card scene" style={{ background: biomeBg(biome) }}>
                   <div style={{ position: "absolute", inset: 0, background: ambience.overlay }} />
@@ -599,7 +649,7 @@ export default function TaskyApp() {
               <div className="card" style={{ marginTop: 18 }}>
                 <h3 style={{ fontSize: 18, marginBottom: 6 }}>Tâches du jour</h3>
                 {todayTasks.length === 0 && <div className="sub" style={{ padding: "14px 0" }}>Tout est calme. Ajoutez une tâche, ou profitez du moment avec Tasky.</div>}
-                {[...todayTasks].sort((a, b) => (a.priority === "focus" ? -1 : 1)).map((task) => (
+                {sortedToday.map((task) => (
                   <TaskRow key={task.id} task={task} onToggle={completeTask} onSub={toggleSub} onFocus={setFocusTask} />
                 ))}
               </div>
@@ -610,7 +660,7 @@ export default function TaskyApp() {
           {page === "calendar" && <CalendarPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={openNew} onFocus={setFocusTask} />}
           {page === "tasky" && <TaskyPage profile={profile} setProfile={setProfile} stage={stage} nextStage={nextStage} xp={xp} energy={energy} affinity={affinity} mood={mood} history={history} inventory={inventory} avatarProps={avatarProps} motion={motion} />}
           {page === "world" && <WorldPage world={world} setWorld={setWorld} stage={stage} avatarProps={avatarProps} motion={motion} />}
-          {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} />}
+          {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} onEvening={() => setEvening(true)} eveningDone={eveningDone === t} />}
           {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
           {page === "inventory" && <InventoryPage inventory={inventory} onUse={useItem} isActive={itemActive} />}
           {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
@@ -625,6 +675,7 @@ export default function TaskyApp() {
       <button className="fab" onClick={() => openNew()} aria-label="Ajouter une tâche">+</button>
 
       {focusTask && <FocusMode task={focusTask} avatarProps={avatarProps} accent={style.accent} motion={motion} onClose={() => setFocusTask(null)} onComplete={() => { completeTask(focusTask.id); setFocusTask(null); }} />}
+      {evening && <EveningRitual avatarProps={avatarProps} doneToday={doneToday} motion={motion} onClose={() => setEvening(false)} onComplete={finishEvening} />}
       {showNew && <NewTaskModal onClose={closeNew} onSave={addTask} initialDue={newTaskDate} />}
       {breathing && (
         <div className="overlay" onClick={() => setBreathing(false)}>
@@ -810,6 +861,61 @@ function FocusMode({ task, avatarProps, accent, motion, onClose, onComplete }) {
         <button onClick={() => setRunning((r) => !r)} style={{ border: "none", background: "transparent", color: "var(--muted)", font: "inherit", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           {running ? <><Ic d="M8 5v14M16 5v14" size={15} /> mettre en pause</> : <><Ic d="M7 5l12 7-12 7z" size={15} /> reprendre</>}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Rituel du soir — clôture douce de la journée ---------- */
+function EveningRitual({ avatarProps, doneToday, motion, onClose, onComplete }) {
+  const [step, setStep] = useState(0);
+  const [grat, setGrat] = useState("");
+  return (
+    <div className="focusmode">
+      <div className="fm-top">
+        <div>
+          <div className="display" style={{ fontSize: 16 }}>Rituel du soir</div>
+          <div className="sub" style={{ marginTop: 0 }}>clore la journée</div>
+        </div>
+        <button className="fm-x" onClick={onClose} aria-label="Quitter le rituel"><Ic d="M6 6l12 12M18 6L6 18" size={18} /></button>
+      </div>
+
+      <div className="fm-center">
+        <div className="focus-rings">
+          <span className="ring" style={{ inset: 0, background: avatarProps.accent, opacity: 0.08 }} />
+          <span className={`ring ${motion === "on" ? "focus-breath" : ""}`} style={{ width: 150, height: 150, border: `2px solid ${avatarProps.accent}`, opacity: 0.4 }} />
+          <TaskyAvatar {...avatarProps} eyes={step === 2 ? "calme" : avatarProps.eyes} mood={step === 2 ? "Paisible" : avatarProps.mood} size={108} floating={false} />
+        </div>
+
+        {step === 0 && (
+          <div style={{ textAlign: "center", maxWidth: 320 }}>
+            <div className="display" style={{ fontSize: 20 }}>{doneToday > 0 ? `${doneToday} chose${doneToday > 1 ? "s" : ""} accomplie${doneToday > 1 ? "s" : ""} aujourd'hui` : "Une journée de plus, ensemble"}</div>
+            <div className="sub" style={{ marginTop: 6 }}>Quoi qu'il en soit, tu as avancé. Respire un instant.</div>
+          </div>
+        )}
+        {step === 1 && (
+          <div style={{ textAlign: "center", width: "100%", maxWidth: 360 }}>
+            <div className="display" style={{ fontSize: 20, marginBottom: 12 }}>Une gratitude</div>
+            <input value={grat} onChange={(e) => setGrat(e.target.value)} placeholder="Une chose belle d'aujourd'hui…" style={{ width: "100%", font: "inherit", padding: "12px 14px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)" }} />
+          </div>
+        )}
+        {step === 2 && (
+          <div style={{ textAlign: "center", maxWidth: 320 }}>
+            <div className="display" style={{ fontSize: 20 }}>Bonne nuit ✦</div>
+            <div className="sub" style={{ marginTop: 6 }}>Tasky s'endort, apaisé. À demain.</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {step === 0 && <button className="btn" onClick={() => setStep(1)} style={{ width: "100%", padding: 15, fontSize: 15 }}>Continuer</button>}
+        {step === 1 && (
+          <>
+            <button className="btn" onClick={() => setStep(2)} style={{ width: "100%", padding: 15, fontSize: 15 }}>{grat.trim() ? "Garder ce moment" : "Continuer"}</button>
+            <button onClick={() => setStep(2)} style={{ border: "none", background: "transparent", color: "var(--muted)", font: "inherit", fontSize: 13, cursor: "pointer" }}>Passer</button>
+          </>
+        )}
+        {step === 2 && <button className="btn" onClick={() => onComplete(grat)} style={{ width: "100%", padding: 15, fontSize: 15 }}>✦ Terminer la journée</button>}
       </div>
     </div>
   );
@@ -1072,11 +1178,19 @@ function WorldPage({ world, setWorld, stage, avatarProps, motion }) {
 }
 
 /* ---------- Rituels ---------- */
-function RitualsPage({ rituals, onCheck, onBreath, onGratitude }) {
+function RitualsPage({ rituals, onCheck, onBreath, onGratitude, onEvening, eveningDone }) {
   const [grat, setGrat] = useState("");
   return (
     <>
       <div className="pagehead"><div><h1>Rituels</h1><div className="sub">De petites routines calmes — rien d'obligatoire.</div></div></div>
+      <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <span style={{ color: "var(--accent)", display: "grid", placeItems: "center" }}><Ic d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" size={26} /></span>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ fontWeight: 600, fontSize: 16 }}>Rituel du soir</div>
+          <div className="sub">Un bilan doux, une gratitude, et Tasky s'endort. {eveningDone ? "Fait ce soir ✦" : ""}</div>
+        </div>
+        <button className="btn" onClick={onEvening}>{eveningDone ? "Recommencer" : "Commencer"}</button>
+      </div>
       <div className="grid2">
         <div className="card">
           <h3 style={{ fontSize: 17, marginBottom: 8 }}>Aujourd'hui</h3>
