@@ -56,6 +56,14 @@ const EFFORTS = [
 const REPEATS = ["Aucune", "Quotidienne", "Hebdomadaire"];
 const CATEGORIES = ["Travail", "Maison", "Soin de soi", "Études", "Créatif", "Autre"];
 
+/* Mode d'accompagnement — règle la vitesse à laquelle Tasky perd en vitalité s'il est négligé */
+const MODES = [
+  { id: "chill", name: "Chill", desc: "Sans pression — Tasky t'attend toujours.", decay: 0.4 },
+  { id: "boost", name: "Boost", desc: "Un peu d'élan — Tasky réagit à ton rythme.", decay: 1.1 },
+  { id: "challenge", name: "Challenge", desc: "Vraie dynamique — Tasky compte sur toi.", decay: 2.4 },
+];
+const decayRate = (mode) => (MODES.find((m) => m.id === mode) || MODES[0]).decay;
+
 const STAGES = [
   { id: 0, name: "Éveil", min: 0, unlock: "Tasky ouvre les yeux" },
   { id: 1, name: "Élan", min: 50, unlock: "Accessoire « Petite pousse » + objet « Lanterne »" },
@@ -248,6 +256,12 @@ const css = `
 @keyframes tkblink { 0%,93%,100% { transform: scaleY(1); } 96.5% { transform: scaleY(0.12); } }
 .tk-breathe { transform-box: fill-box; transform-origin: 50% 96%; animation: tkbreathe 4.6s ease-in-out infinite; }
 .tk-blink { transform-box: fill-box; transform-origin: 50% 50%; animation: tkblink 5.4s ease-in-out infinite; }
+.wander { position: absolute; bottom: 11%; transition: left 2.8s ease-in-out; }
+@keyframes tkhop { 0%,100% { transform: translateY(0); } 35% { transform: translateY(-11px); } 70% { transform: translateY(0); } }
+@keyframes tkhopbig { 0%,100% { transform: translateY(0) scale(1); } 28% { transform: translateY(-22px) scale(1.06); } 64% { transform: translateY(0) scale(1); } }
+.hopper.walking { animation: tkhop 0.9s ease; }
+.hopper.cheering { animation: tkhopbig 0.7s ease; }
+[data-motion="off"] .wander { transition: none; }
 .pick { border: 1.5px solid var(--line); background: var(--surface); border-radius: 16px; padding: 14px; cursor: pointer; text-align: left; font: inherit; color: var(--ink); transition: border-color 0.15s; }
 .pick.on { border-color: var(--accent); background: var(--tint); }
 .pick .pname { font-weight: 700; font-size: 14.5px; }
@@ -342,16 +356,18 @@ const AVATAR_BODIES = {
 };
 
 /* Moteur SVG — vectoriel, thémable, animé (respiration + clignement) */
-function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucun", outfit = "aucune", mood = "Serein", stage = 0, size = 150, accent = "#6B8F71", floating = true }) {
+function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucun", outfit = "aucune", mood = "Serein", stage = 0, size = 150, accent = "#6B8F71", floating = true, tired = false }) {
   const body = AVATAR_BODIES[silhouette] || AVATAR_BODIES.galet;
-  const happy = ["Joyeux", "Rayonnant"].includes(mood);
+  const happy = !tired && ["Joyeux", "Rayonnant"].includes(mood);
+  const eyesEff = tired ? "calme" : eyes;
   const eyeY = 78;
   const renderEyes = () => {
-    if (eyes === "rond") return (<g fill="#2B2B28"><circle cx="55" cy={eyeY} r="6" /><circle cx="95" cy={eyeY} r="6" /></g>);
-    if (eyes === "etoile") return (<g fill="#2B2B28"><path d={`M55 ${eyeY-7} l2.2 4.6 5 .7-3.6 3.5.8 5-4.4-2.4-4.4 2.4.8-5-3.6-3.5 5-.7z`} /><path d={`M95 ${eyeY-7} l2.2 4.6 5 .7-3.6 3.5.8 5-4.4-2.4-4.4 2.4.8-5-3.6-3.5 5-.7z`} /></g>);
-    if (eyes === "calme") return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round"><path d={`M48 ${eyeY} h14`} /><path d={`M88 ${eyeY} h14`} /></g>);
+    if (eyesEff === "rond") return (<g fill="#2B2B28"><circle cx="55" cy={eyeY} r="6" /><circle cx="95" cy={eyeY} r="6" /></g>);
+    if (eyesEff === "etoile") return (<g fill="#2B2B28"><path d={`M55 ${eyeY-7} l2.2 4.6 5 .7-3.6 3.5.8 5-4.4-2.4-4.4 2.4.8-5-3.6-3.5 5-.7z`} /><path d={`M95 ${eyeY-7} l2.2 4.6 5 .7-3.6 3.5.8 5-4.4-2.4-4.4 2.4.8-5-3.6-3.5 5-.7z`} /></g>);
+    if (eyesEff === "calme") return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round"><path d={`M48 ${eyeY} h14`} /><path d={`M88 ${eyeY} h14`} /></g>);
     return (<g stroke="#2B2B28" strokeWidth="3.4" strokeLinecap="round" fill="none"><path d={`M48 ${eyeY+2} q7 ${happy ? -9 : -6} 14 0`} /><path d={`M88 ${eyeY+2} q7 ${happy ? -9 : -6} 14 0`} /></g>);
   };
+  const mouthPath = tired ? `M68 97 q7 -2 14 0` : `M66 ${happy ? 94 : 96} q9 ${happy ? 10 : 6} 18 0`;
   const gid = useRef("tk" + Math.random().toString(36).slice(2, 7)).current;
   return (
     <div className={floating ? "float" : ""} style={{ width: size, height: size }} aria-label={`Tasky, humeur ${mood}`}>
@@ -363,7 +379,7 @@ function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucu
         </defs>
         {stage >= 4 && <circle cx="75" cy="80" r="68" fill={accent} opacity="0.12" />}
         <ellipse cx="75" cy="142" rx="42" ry="6" fill="#000" opacity="0.08" />
-        <g className="tk-breathe">
+        <g className="tk-breathe" opacity={tired ? 0.82 : 1}>
           <path d={body} fill={accent} />
           <g clipPath={`url(#clip-${gid})`}>
             <path d={body} fill={`url(#shade-${gid})`} />
@@ -374,8 +390,9 @@ function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucu
           {outfit === "echarpe" && <path d="M40 108 q35 14 70 0 l-3 12 q-32 12 -64 0 z" fill={accent} opacity="0.6" />}
           {outfit === "cape" && <path d="M30 70 q-14 40 4 62 q40 10 82 0 q18 -22 4 -62 q-45 -16 -90 0z" fill={accent} opacity="0.32" />}
           <g className="tk-blink">{renderEyes()}</g>
-          <path d={`M66 ${happy ? 94 : 96} q9 ${happy ? 10 : 6} 18 0`} stroke="#2B2B28" strokeWidth="3.2" fill="none" strokeLinecap="round" />
+          <path d={mouthPath} stroke="#2B2B28" strokeWidth="3.2" fill="none" strokeLinecap="round" />
           {happy && <g fill="#E08A6D" opacity="0.5"><circle cx="44" cy="92" r="5.5" /><circle cx="106" cy="92" r="5.5" /></g>}
+          {tired && <text x="112" y="46" fontSize="15" fontFamily="serif" fill="#2B2B28" opacity="0.5">z</text>}
           {/* Slot accessoire (tête) */}
           {accessory === "pousse" && <g><path d="M75 22 q-2 -12 -10 -15 q12 -1 12 13" fill="#6B8F71" /><path d="M77 22 q2 -12 10 -15 q-12 -1 -12 13" fill="#8FB08A" /></g>}
           {accessory === "beret" && <path d="M42 34 q33 -26 66 0 q-8 -8 -33 -8 t-33 8z" fill="#2B2B28" opacity="0.8" />}
@@ -391,6 +408,42 @@ const AVATAR_ENGINES = { svg: TaskyAvatarSVG };
 function TaskyAvatar(props) {
   const Engine = AVATAR_ENGINES[props.engine] || AVATAR_ENGINES.svg;
   return <Engine {...props} />;
+}
+
+/* Tasky qui vit dans son cadre : se balade, regarde ailleurs, sautille, et bondit de joie quand on accomplit une tâche */
+function WanderingTasky({ avatarProps, motion, size = 94, cheer = 0, onClick }) {
+  const on = motion === "on";
+  const [x, setX] = useState(50);
+  const [face, setFace] = useState(1);
+  const [hopKey, setHopKey] = useState(0);
+  const [big, setBig] = useState(false);
+  useEffect(() => {
+    if (!on) return;
+    const id = setInterval(() => {
+      setX((prev) => {
+        const next = 16 + Math.random() * 68;
+        setFace(next > prev ? -1 : 1);
+        return next;
+      });
+      setBig(false);
+      setHopKey((k) => k + 1);
+    }, 3400);
+    return () => clearInterval(id);
+  }, [on]);
+  useEffect(() => {
+    if (!cheer) return;
+    setBig(true);
+    setHopKey((k) => k + 1);
+  }, [cheer]);
+  return (
+    <button onClick={onClick} aria-label="Voir Tasky de près" className="wander" style={{ left: `${x}%`, transform: "translateX(-50%)", border: "none", background: "transparent", cursor: "pointer", padding: 0, zIndex: 1 }}>
+      <div key={hopKey} className={on ? `hopper ${big ? "cheering" : "walking"}` : ""}>
+        <div style={{ transform: `scaleX(${face})` }}>
+          <TaskyAvatar {...avatarProps} size={size} floating={false} />
+        </div>
+      </div>
+    </button>
+  );
 }
 
 /* ---------- Petits composants ---------- */
@@ -412,7 +465,7 @@ export default function TaskyApp() {
   const [notifs, setNotifs] = useState(saved.notifs ?? true);
   const [page, setPage] = useState("today");
   const [onboarded, setOnboarded] = useState(saved.onboarded ?? false);
-  const [profile, setProfile] = useState(saved.profile ?? { styleId: "zen", silhouette: "galet", eyes: "doux", accessory: "aucun", outfit: "aucune" });
+  const [profile, setProfile] = useState(saved.profile ?? { styleId: "zen", silhouette: "galet", eyes: "doux", accessory: "aucun", outfit: "aucune", mode: "chill" });
   const [tasks, setTasks] = useState(() => saved.tasks ?? seedTasks());
   const [xp, setXp] = useState(saved.xp ?? 0);
   const [energy, setEnergy] = useState(saved.energy ?? 42);
@@ -434,6 +487,7 @@ export default function TaskyApp() {
   const [checkin, setCheckin] = useState(saved.checkin ?? null);
   const [eveningDone, setEveningDone] = useState(saved.eveningDone ?? null);
   const [evening, setEvening] = useState(false);
+  const [cheer, setCheer] = useState(0);
   const prevStage = useRef(stageFor(saved.xp ?? 0).id);
 
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
@@ -456,10 +510,23 @@ export default function TaskyApp() {
     }
   }, [stage.id]);
 
-  /* Sauvegarde automatique dans le navigateur */
+  /* Sauvegarde automatique dans le navigateur (avec horodatage de dernière présence) */
   useEffect(() => {
-    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone });
+    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone, lastSeen: Date.now() });
   }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone]);
+
+  /* Déclin de vitalité au retour : Tasky se repose s'il est négligé (jamais en dessous d'un plancher, jamais de "mort") */
+  const didDecay = useRef(false);
+  useEffect(() => {
+    if (didDecay.current) return; // évite le double-passage StrictMode
+    didDecay.current = true;
+    if (!onboarded || !saved.lastSeen) return;
+    const hours = (Date.now() - saved.lastSeen) / 3.6e6;
+    if (hours < 0.5) return;
+    const rate = decayRate(saved.profile?.mode || profile.mode);
+    setEnergy((e) => Math.max(10, e - hours * rate));
+    setAffinity((a) => Math.max(0, a - hours * rate * 0.5));
+  }, []);
 
   /* Préférences accessibles au retour sensoriel (son/haptique des TaskRow) */
   useEffect(() => { SOUND_ON = sounds; }, [sounds]);
@@ -476,6 +543,7 @@ export default function TaskyApp() {
       setXp((x) => x + eff.xp + bonus);
       setEnergy((e) => Math.min(100, e + 10));
       setAffinity((a) => Math.min(100, a + 2));
+      setCheer((c) => c + 1);
       notify("Tasky s'illumine doucement ✦");
     }
   };
@@ -487,6 +555,7 @@ export default function TaskyApp() {
     if (!r.done) {
       setAffinity((a) => Math.min(100, a + 4));
       setEnergy((e) => Math.min(100, e + 4));
+      setCheer((c) => c + 1);
       notify("Tasky apprécie ce moment calme");
     }
     setRituals((rs) => rs.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
@@ -557,7 +626,7 @@ export default function TaskyApp() {
     : null;
   const isEvening = new Date().getHours() >= 18;
 
-  const avatarProps = { ...profile, mood, stage: stage.id, accent: style.accent };
+  const avatarProps = { ...profile, mood, stage: stage.id, accent: style.accent, tired: energy < 22 };
 
   const vars = { "--accent": style.accent, "--accent2": style.accent2, "--tint": theme === "dark" ? "rgba(255,255,255,0.07)" : style.tint };
   const curZone = zoneForPage(page);
@@ -632,10 +701,8 @@ export default function TaskyApp() {
                 <div className="card scene" style={{ background: biomeBg(biome) }}>
                   <div style={{ position: "absolute", inset: 0, background: ambience.overlay }} />
                   <div className="ground" />
-                  <button onClick={() => setPage("tasky")} aria-label="Voir Tasky de près" style={{ position: "relative", zIndex: 1, textAlign: "center", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}>
-                    <TaskyAvatar {...avatarProps} size={150} floating={motion === "on"} />
-                    <div className="display" style={{ fontSize: 15, marginTop: 4, color: "#2B2B28" }}>{stage.name}</div>
-                  </button>
+                  <div className="display" style={{ position: "absolute", top: 12, left: 16, fontSize: 14, color: "#2B2B28", opacity: 0.7, zIndex: 1 }}>{stage.name}</div>
+                  <WanderingTasky avatarProps={avatarProps} motion={motion} cheer={cheer} size={92} onClick={() => setPage("tasky")} />
                 </div>
                 <div className="card">
                   <h3 style={{ fontSize: 18, marginBottom: 16 }}>Résumé du jour</h3>
@@ -663,7 +730,7 @@ export default function TaskyApp() {
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} onEvening={() => setEvening(true)} eveningDone={eveningDone === t} />}
           {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
           {page === "inventory" && <InventoryPage inventory={inventory} onUse={useItem} isActive={itemActive} />}
-          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
+          {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={setNotifs} mode={profile.mode || "chill"} setMode={(m) => setProfile((p) => ({ ...p, mode: m }))} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
         </main>
       </div>
 
@@ -694,7 +761,7 @@ export default function TaskyApp() {
 /* ---------- Onboarding ---------- */
 function Onboarding({ profile, setProfile, onDone }) {
   const [step, setStep] = useState(0);
-  const steps = ["Style", "Silhouette", "Regard", "Accessoire", "Tenue"];
+  const steps = ["Style", "Silhouette", "Regard", "Accessoire", "Tenue", "Rythme"];
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
   const set = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
   const opts = [
@@ -702,7 +769,8 @@ function Onboarding({ profile, setProfile, onDone }) {
     { key: "silhouette", items: SILHOUETTES, title: "Sa silhouette", sub: "La forme de base de votre compagnon." },
     { key: "eyes", items: EYES, title: "Son regard", sub: "L'expression de départ de Tasky." },
     { key: "accessory", items: ACCESSORIES, title: "Un premier accessoire", sub: "D'autres se débloqueront avec le temps." },
-    { key: "outfit", items: OUTFITS, title: "Sa tenue de départ", sub: "Tasky est prêt à vous rencontrer." },
+    { key: "outfit", items: OUTFITS, title: "Sa tenue de départ", sub: "Tasky est presque prêt." },
+    { key: "mode", items: MODES, title: "Quel accompagnement veux-tu ?", sub: "À quel point Tasky compte sur toi. Modifiable à tout moment dans les Réglages." },
   ];
   const cur = opts[step];
   return (
@@ -1292,7 +1360,7 @@ function InventoryPage({ inventory, onUse, isActive }) {
 }
 
 /* ---------- Réglages ---------- */
-function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, notifs, setNotifs, onReset }) {
+function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, notifs, setNotifs, mode, setMode, onReset }) {
   const Row = ({ label, sub, children }) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: "1px solid var(--line)", gap: 16, flexWrap: "wrap" }}>
       <div><div style={{ fontWeight: 600, fontSize: 15 }}>{label}</div><div className="sub">{sub}</div></div>
@@ -1305,6 +1373,9 @@ function SettingsPage({ theme, setTheme, motion, setMotion, sounds, setSounds, n
       <div className="card">
         <Row label="Thème" sub="Clair ou sombre.">
           <div className="seg"><button className={theme === "light" ? "on" : ""} onClick={() => setTheme("light")}>Clair</button><button className={theme === "dark" ? "on" : ""} onClick={() => setTheme("dark")}>Sombre</button></div>
+        </Row>
+        <Row label="Accompagnement" sub="À quel point Tasky compte sur toi (rythme de sa vitalité).">
+          <div className="seg">{MODES.map((m) => <button key={m.id} className={mode === m.id ? "on" : ""} onClick={() => setMode(m.id)}>{m.name}</button>)}</div>
         </Row>
         <Row label="Animations" sub="Réduisez les mouvements si vous préférez le calme total.">
           <div className="seg"><button className={motion === "on" ? "on" : ""} onClick={() => setMotion("on")}>Activées</button><button className={motion === "off" ? "on" : ""} onClick={() => setMotion("off")}>Réduites</button></div>
