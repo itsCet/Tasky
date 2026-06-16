@@ -12,3 +12,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <TaskyApp />
   </React.StrictMode>
 );
+
+// Service worker — rend l'app installable et prête pour les notifications
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}

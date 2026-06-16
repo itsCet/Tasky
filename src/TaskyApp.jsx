@@ -446,6 +446,37 @@ function WanderingTasky({ avatarProps, motion, size = 94, cheer = 0, onClick }) 
   );
 }
 
+/* ---------- Encart d'installation (PWA) ---------- */
+function InstallBanner() {
+  const [deferred, setDeferred] = useState(null);
+  const [show, setShow] = useState(false);
+  const [ios, setIos] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem("tasky-install-dismiss") === "1") return; } catch {}
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+    if (standalone) return;
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIos) { setIos(true); setShow(true); return; }
+    const onBip = (e) => { e.preventDefault(); setDeferred(e); setShow(true); };
+    window.addEventListener("beforeinstallprompt", onBip);
+    return () => window.removeEventListener("beforeinstallprompt", onBip);
+  }, []);
+  if (!show) return null;
+  const dismiss = () => { setShow(false); try { localStorage.setItem("tasky-install-dismiss", "1"); } catch {} };
+  const install = async () => { if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch {} dismiss(); } };
+  return (
+    <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--accent)", background: "var(--tint)" }}>
+      <span style={{ color: "var(--accent)", display: "grid", placeItems: "center" }}><Ic d="M12 3v12M8 11l4 4 4-4M5 21h14" size={24} /></span>
+      <div style={{ flex: 1, minWidth: 120 }}>
+        <div style={{ fontWeight: 600, fontSize: 15 }}>Installer Tasky</div>
+        <div className="sub">{ios ? "Touche Partager puis « Sur l'écran d'accueil » — indispensable pour les notifications sur iPhone." : "Garde Tasky comme une vraie app et active les notifications."}</div>
+      </div>
+      {!ios && <button className="btn" onClick={install}>Installer</button>}
+      <button className="btn ghost" onClick={dismiss} aria-label="Plus tard">✕</button>
+    </div>
+  );
+}
+
 /* ---------- Petits composants ---------- */
 const Stat = ({ label, value, max = 100 }) => (
   <div style={{ marginBottom: 14 }}>
@@ -671,6 +702,7 @@ export default function TaskyApp() {
               </div>
             </div>
           )}
+          <InstallBanner />
           {page === "today" && (
             <>
               <div className="pagehead">
