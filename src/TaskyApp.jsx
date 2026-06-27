@@ -59,9 +59,9 @@ const CATEGORIES = ["Travail", "Maison", "Soin de soi", "Études", "Créatif", "
 
 /* Mode d'accompagnement — règle la vitesse à laquelle Tasky perd en vitalité s'il est négligé */
 const MODES = [
-  { id: "chill", name: "Chill", desc: "Sans pression — Tasky t'attend toujours.", decay: 0.4 },
-  { id: "boost", name: "Boost", desc: "Un peu d'élan — Tasky réagit à ton rythme.", decay: 1.1 },
-  { id: "challenge", name: "Challenge", desc: "Vraie dynamique — Tasky compte sur toi.", decay: 2.4 },
+  { id: "chill", name: "Détente", desc: "Aucune pression — Tasky t'attend toujours, sans jamais dépérir.", decay: 0.1 },
+  { id: "boost", name: "Équilibre", desc: "Un peu d'élan — Tasky se repose doucement si tu t'absentes.", decay: 0.8 },
+  { id: "challenge", name: "Défi", desc: "Vraie dynamique — Tasky compte sur toi pour rester en forme.", decay: 2.4 },
 ];
 const decayRate = (mode) => (MODES.find((m) => m.id === mode) || MODES[0]).decay;
 
@@ -101,8 +101,8 @@ const WORLD_OBJECTS = [
 ];
 
 const INVENTORY_SEED = [
-  { id: "riz", name: "Bol de riz doux", type: "Nourriture", desc: "Redonne un peu d'énergie à Tasky.", unlocked: true },
-  { id: "the-vert", name: "Thé vert", type: "Nourriture", desc: "Un moment calme partagé.", unlocked: true },
+  { id: "riz", name: "Bol de riz doux", type: "Nourriture", desc: "Redonne de l'énergie à Tasky.", unlocked: true, cost: 6, energy: 14, affinity: 1 },
+  { id: "the-vert", name: "Thé vert", type: "Nourriture", desc: "Un moment calme partagé.", unlocked: true, cost: 4, energy: 8, affinity: 3 },
   { id: "echarpe", name: "Écharpe", type: "Vêtements", desc: "Tenue de départ.", unlocked: true },
   { id: "cape", name: "Petite cape", type: "Vêtements", desc: "Débloquée au palier Rayonnement.", unlocked: false },
   { id: "pousse", name: "Petite pousse", type: "Décorations", desc: "Accessoire — palier Élan.", unlocked: false },
@@ -355,10 +355,18 @@ const AVATAR_BODIES = {
   feuille: "M75 16 C120 28 136 68 128 102 C122 128 100 140 75 140 C50 140 28 128 22 102 C14 68 30 28 75 16 Z",
   carre: "M40 24 H110 C126 24 134 36 134 56 V104 C134 126 122 138 100 138 H50 C28 138 16 126 16 104 V56 C16 36 24 24 40 24 Z",
 };
+/* Décalages d'ancrage (haut/bas) des accessoires & tenues selon la silhouette — corrige le décalage visuel */
+const AVATAR_ANCHORS = {
+  galet: { head: 0, body: 0 },
+  flamme: { head: -6, body: 2 },
+  feuille: { head: -4, body: 1 },
+  carre: { head: 4, body: -4 },
+};
 
 /* Moteur SVG — vectoriel, thémable, animé (respiration + clignement) */
 function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucun", outfit = "aucune", mood = "Serein", stage = 0, size = 150, accent = "#6B8F71", floating = true, tired = false }) {
   const body = AVATAR_BODIES[silhouette] || AVATAR_BODIES.galet;
+  const anchor = AVATAR_ANCHORS[silhouette] || AVATAR_ANCHORS.galet;
   const happy = !tired && ["Joyeux", "Rayonnant"].includes(mood);
   const eyesEff = tired ? "calme" : eyes;
   const eyeY = 78;
@@ -387,17 +395,21 @@ function TaskyAvatarSVG({ silhouette = "galet", eyes = "doux", accessory = "aucu
             <ellipse cx="56" cy="52" rx="30" ry="20" fill="#fff" opacity="0.22" />
           </g>
           <path d={body} fill={`url(#shine-${gid})`} />
-          {/* Slot tenue (bas) */}
-          {outfit === "echarpe" && <path d="M40 108 q35 14 70 0 l-3 12 q-32 12 -64 0 z" fill={accent} opacity="0.6" />}
-          {outfit === "cape" && <path d="M30 70 q-14 40 4 62 q40 10 82 0 q18 -22 4 -62 q-45 -16 -90 0z" fill={accent} opacity="0.32" />}
+          {/* Slot tenue (bas) — ancré selon la silhouette */}
+          <g transform={`translate(0, ${anchor.body})`}>
+            {outfit === "echarpe" && <path d="M40 108 q35 14 70 0 l-3 12 q-32 12 -64 0 z" fill={accent} opacity="0.6" />}
+            {outfit === "cape" && <path d="M30 70 q-14 40 4 62 q40 10 82 0 q18 -22 4 -62 q-45 -16 -90 0z" fill={accent} opacity="0.32" />}
+          </g>
           <g className="tk-blink">{renderEyes()}</g>
           <path d={mouthPath} stroke="#2B2B28" strokeWidth="3.2" fill="none" strokeLinecap="round" />
           {happy && <g fill="#E08A6D" opacity="0.5"><circle cx="44" cy="92" r="5.5" /><circle cx="106" cy="92" r="5.5" /></g>}
           {tired && <text x="112" y="46" fontSize="15" fontFamily="serif" fill="#2B2B28" opacity="0.5">z</text>}
-          {/* Slot accessoire (tête) */}
-          {accessory === "pousse" && <g><path d="M75 22 q-2 -12 -10 -15 q12 -1 12 13" fill="#6B8F71" /><path d="M77 22 q2 -12 10 -15 q-12 -1 -12 13" fill="#8FB08A" /></g>}
-          {accessory === "beret" && <path d="M42 34 q33 -26 66 0 q-8 -8 -33 -8 t-33 8z" fill="#2B2B28" opacity="0.8" />}
-          {accessory === "antenne" && <g><line x1="75" y1="22" x2="75" y2="6" stroke="#2B2B28" strokeWidth="2.6" /><circle cx="75" cy="5" r="4.5" fill={accent} /></g>}
+          {/* Slot accessoire (tête) — ancré selon la silhouette */}
+          <g transform={`translate(0, ${anchor.head})`}>
+            {accessory === "pousse" && <g><path d="M75 22 q-2 -12 -10 -15 q12 -1 12 13" fill="#6B8F71" /><path d="M77 22 q2 -12 10 -15 q-12 -1 -12 13" fill="#8FB08A" /></g>}
+            {accessory === "beret" && <path d="M42 34 q33 -26 66 0 q-8 -8 -33 -8 t-33 8z" fill="#2B2B28" opacity="0.8" />}
+            {accessory === "antenne" && <g><line x1="75" y1="22" x2="75" y2="6" stroke="#2B2B28" strokeWidth="2.6" /><circle cx="75" cy="5" r="4.5" fill={accent} /></g>}
+          </g>
         </g>
       </svg>
     </div>
@@ -444,6 +456,53 @@ function WanderingTasky({ avatarProps, motion, size = 94, cheer = 0, onClick }) 
         </div>
       </div>
     </button>
+  );
+}
+
+/* ---------- Coach de première utilisation ---------- */
+function CoachTutorial({ avatarProps, onDone }) {
+  const steps = [
+    "Salut, je suis Tasky ✦ Glisse une tâche vers la droite pour me l'offrir — je grandis à chaque fois.",
+    "Touche-moi quand tu veux pour me voir de près. Choisis tes 3 priorités du jour, et c'est tout 🌱",
+  ];
+  const [i, setI] = useState(0);
+  const last = i === steps.length - 1;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,15,0.4)", zIndex: 70, display: "flex", alignItems: "flex-end", padding: 16 }}>
+      <div className="card" style={{ width: "100%", maxWidth: 520, margin: "0 auto", display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ flex: "none" }}><TaskyAvatar {...avatarProps} size={64} floating={false} /></div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14.5, lineHeight: 1.45 }}>{steps[i]}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+            <span className="sub" style={{ marginTop: 0 }}>{i + 1} / {steps.length}</span>
+            <span style={{ display: "flex", gap: 8 }}>
+              <button className="btn ghost" onClick={onDone}>Passer</button>
+              <button className="btn" onClick={() => (last ? onDone() : setI(i + 1))}>{last ? "C'est parti" : "Suivant"}</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Pause respiration guidée (Inspire / Expire synchronisé) ---------- */
+function BreathingOverlay({ motion, onClose }) {
+  const [phase, setPhase] = useState("Inspire");
+  useEffect(() => {
+    if (motion !== "on") return;
+    // le cercle respire sur 8s (4s d'expansion = inspire, 4s de contraction = expire)
+    const id = setInterval(() => setPhase((p) => (p === "Inspire" ? "Expire" : "Inspire")), 4000);
+    return () => clearInterval(id);
+  }, [motion]);
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div style={{ textAlign: "center", color: "#fff" }}>
+        <div className="breath-circle" style={{ margin: "0 auto 24px" }} />
+        <div className="display" style={{ fontSize: 22, transition: "opacity 0.4s" }}>{motion === "on" ? `${phase}…` : "Respire…"}</div>
+        <div style={{ opacity: 0.8, marginTop: 8, fontSize: 14 }}>Touchez l'écran pour terminer</div>
+      </div>
+    </div>
   );
 }
 
@@ -520,6 +579,8 @@ export default function TaskyApp() {
   const [eveningDone, setEveningDone] = useState(saved.eveningDone ?? null);
   const [evening, setEvening] = useState(false);
   const [cheer, setCheer] = useState(0);
+  const [tutorialDone, setTutorialDone] = useState(saved.tutorialDone ?? false);
+  const [coins, setCoins] = useState(saved.coins ?? 0);
   const prevStage = useRef(stageFor(saved.xp ?? 0).id);
 
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
@@ -562,8 +623,8 @@ export default function TaskyApp() {
 
   /* Sauvegarde automatique dans le navigateur (avec horodatage de dernière présence) */
   useEffect(() => {
-    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone, lastSeen: Date.now() });
-  }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone]);
+    saveState({ theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone, tutorialDone, coins, lastSeen: Date.now() });
+  }, [theme, motion, sounds, notifs, onboarded, profile, tasks, xp, energy, affinity, world, rituals, journal, inventory, history, checkin, eveningDone, tutorialDone, coins]);
 
   /* Déclin de vitalité au retour : Tasky se repose s'il est négligé (jamais en dessous d'un plancher, jamais de "mort") */
   const didDecay = useRef(false);
@@ -586,15 +647,19 @@ export default function TaskyApp() {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
     const nowDone = !task.done;
-    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: nowDone } : t)));
-    if (nowDone) {
+    // Anti-triche : la récompense ne tombe qu'à la PREMIÈRE complétion (pas en re-cochant)
+    const firstReward = nowDone && !task.xpAwarded;
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: nowDone, xpAwarded: t.xpAwarded || nowDone } : t)));
+    if (firstReward) {
       const eff = EFFORTS.find((e) => e.id === task.effort) || EFFORTS[1];
       const bonus = task.priority === "focus" ? 6 : task.priority === "importante" ? 3 : 0;
+      const coinGain = ({ "5": 2, "15": 3, "30": 5, deep: 8 }[task.effort] || 3) + (task.priority === "focus" ? 2 : task.priority === "importante" ? 1 : 0);
       setXp((x) => x + eff.xp + bonus);
       setEnergy((e) => Math.min(100, e + 10));
       setAffinity((a) => Math.min(100, a + 2));
+      setCoins((c) => c + coinGain);
       setCheer((c) => c + 1);
-      notify("Tasky s'illumine doucement ✦");
+      notify(`Tasky s'illumine ✦ +${coinGain} 🪙`);
     }
   };
   const toggleSub = (taskId, subId) => setTasks((ts) => ts.map((t) => t.id === taskId ? { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } : t));
@@ -651,9 +716,12 @@ export default function TaskyApp() {
       setProfile((p) => ({ ...p, outfit: on ? "aucune" : item.id }));
       notify(on ? `${item.name} retirée` : `${item.name} portée par Tasky ✦`);
     } else if (item.type === "Nourriture") {
-      setEnergy((e) => Math.min(100, e + 12));
-      setAffinity((a) => Math.min(100, a + 2));
-      notify(`${item.name} partagé avec Tasky ✦`);
+      const cost = item.cost || 5;
+      if (coins < cost) { notify(`Il te faut ${cost} 🪙 — accomplis des tâches pour en gagner`); return; }
+      setCoins((c) => c - cost);
+      setEnergy((e) => Math.min(100, e + (item.energy || 12)));
+      setAffinity((a) => Math.min(100, a + (item.affinity || 0)));
+      notify(`${item.name} offert à Tasky ✦ −${cost} 🪙`);
     } else {
       notify(item.desc);
     }
@@ -756,11 +824,17 @@ export default function TaskyApp() {
                   <WanderingTasky avatarProps={avatarProps} motion={motion} cheer={cheer} size={92} onClick={() => setPage("tasky")} />
                 </div>
                 <div className="card">
-                  <h3 style={{ fontSize: 18, marginBottom: 16 }}>Résumé du jour</h3>
-                  <Stat label="Progression du jour" value={totalToday ? (doneToday / totalToday) * 100 : 0} />
-                  <Stat label="Énergie" value={energy} />
-                  <Stat label="Humeur" value={(MOODS.indexOf(mood) + 1) * 20} />
-                  <div className="sub">{doneToday} tâche{doneToday > 1 ? "s" : ""} accomplie{doneToday > 1 ? "s" : ""} · {todayTasks.length} restante{todayTasks.length > 1 ? "s" : ""}</div>
+                  <h3 style={{ fontSize: 18, marginBottom: 14 }}>Résumé du jour</h3>
+                  <div className="statline" style={{ marginBottom: 6 }}><span>Évolution · {stage.name}</span><span>{nextStage ? `${Math.round(xp)} / ${nextStage.min} XP` : "Palier max ✦"}</span></div>
+                  <div className="bar" style={{ height: 11 }}><div style={{ width: `${nextStage ? Math.min(100, (xp / nextStage.min) * 100) : 100}%` }} /></div>
+                  <div style={{ display: "flex", gap: 14, marginTop: 14, alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="sub" style={{ marginTop: 0, fontSize: 12 }}>Énergie</div>
+                      <div className="bar" style={{ height: 6, marginTop: 4 }}><div style={{ width: `${Math.min(100, energy)}%`, background: energy < 22 ? "var(--accent2)" : "var(--accent)" }} /></div>
+                    </div>
+                    <div className="chip"><span className="dot" />{mood}</div>
+                  </div>
+                  <div className="sub" style={{ marginTop: 14 }}>{doneToday} tâche{doneToday > 1 ? "s" : ""} accomplie{doneToday > 1 ? "s" : ""} · {todayTasks.length} restante{todayTasks.length > 1 ? "s" : ""}</div>
                 </div>
               </div>
 
@@ -776,11 +850,11 @@ export default function TaskyApp() {
 
           {page === "tasks" && <TasksPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={() => openNew()} onFocus={setFocusTask} />}
           {page === "calendar" && <CalendarPage tasks={tasks} onToggle={completeTask} onSub={toggleSub} onNew={openNew} onFocus={setFocusTask} />}
-          {page === "tasky" && <TaskyPage profile={profile} setProfile={setProfile} stage={stage} nextStage={nextStage} xp={xp} energy={energy} affinity={affinity} mood={mood} history={history} inventory={inventory} avatarProps={avatarProps} motion={motion} />}
+          {page === "tasky" && <TaskyPage profile={profile} setProfile={setProfile} stage={stage} nextStage={nextStage} xp={xp} energy={energy} affinity={affinity} mood={mood} history={history} inventory={inventory} avatarProps={avatarProps} motion={motion} coins={coins} />}
           {page === "world" && <WorldPage world={world} setWorld={setWorld} stage={stage} avatarProps={avatarProps} motion={motion} />}
           {page === "rituals" && <RitualsPage rituals={rituals} onCheck={checkRitual} onBreath={() => setBreathing(true)} onGratitude={(txt) => addJournal({ mood: "Serein", note: `Gratitude — ${txt}` })} onEvening={() => setEvening(true)} eveningDone={eveningDone === t} />}
           {page === "journal" && <JournalPage journal={journal} onAdd={addJournal} />}
-          {page === "inventory" && <InventoryPage inventory={inventory} onUse={useItem} isActive={itemActive} />}
+          {page === "inventory" && <InventoryPage inventory={inventory} onUse={useItem} isActive={itemActive} coins={coins} />}
           {page === "settings" && <SettingsPage theme={theme} setTheme={setTheme} motion={motion} setMotion={setMotion} sounds={sounds} setSounds={setSounds} notifs={notifs} setNotifs={toggleNotifs} mode={profile.mode || "chill"} setMode={(m) => setProfile((p) => ({ ...p, mode: m }))} onReset={() => { try { localStorage.removeItem(STORE_KEY); } catch {} window.location.reload(); }} />}
         </main>
       </div>
@@ -792,18 +866,11 @@ export default function TaskyApp() {
       </nav>
       <button className="fab" onClick={() => openNew()} aria-label="Ajouter une tâche">+</button>
 
+      {onboarded && !tutorialDone && page === "today" && <CoachTutorial avatarProps={avatarProps} onDone={() => setTutorialDone(true)} />}
       {focusTask && <FocusMode task={focusTask} avatarProps={avatarProps} accent={style.accent} motion={motion} onClose={() => setFocusTask(null)} onComplete={() => { completeTask(focusTask.id); setFocusTask(null); }} />}
       {evening && <EveningRitual avatarProps={avatarProps} doneToday={doneToday} motion={motion} onClose={() => setEvening(false)} onComplete={finishEvening} />}
       {showNew && <NewTaskModal onClose={closeNew} onSave={addTask} initialDue={newTaskDate} />}
-      {breathing && (
-        <div className="overlay" onClick={() => setBreathing(false)}>
-          <div style={{ textAlign: "center", color: "#fff" }}>
-            <div className="breath-circle" style={{ margin: "0 auto 24px" }} />
-            <div className="display" style={{ fontSize: 20 }}>Inspirez… expirez…</div>
-            <div style={{ opacity: 0.8, marginTop: 8, fontSize: 14 }}>Touchez l'écran pour terminer</div>
-          </div>
-        </div>
-      )}
+      {breathing && <BreathingOverlay motion={motion} onClose={() => setBreathing(false)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
@@ -1191,7 +1258,7 @@ function NewTaskModal({ onClose, onSave, initialDue }) {
 }
 
 /* ---------- Page Tasky ---------- */
-function TaskyPage({ profile, setProfile, stage, nextStage, xp, energy, affinity, mood, history, inventory, avatarProps, motion }) {
+function TaskyPage({ profile, setProfile, stage, nextStage, xp, energy, affinity, mood, history, inventory, avatarProps, motion, coins = 0 }) {
   const set = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
   const capeUnlocked = inventory.find((i) => i.id === "cape")?.unlocked;
   const pousseUnlocked = inventory.find((i) => i.id === "pousse")?.unlocked;
@@ -1209,7 +1276,10 @@ function TaskyPage({ profile, setProfile, stage, nextStage, xp, energy, affinity
           <Stat label={`XP — ${stage.name}`} value={xp} max={nextStage ? nextStage.min : Math.max(xp, STAGES[4].min)} />
           <Stat label="Énergie" value={energy} />
           <Stat label="Affinité" value={affinity} />
-          <div className="chip" style={{ marginTop: 4 }}><span className="dot" />Humeur : {mood}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <div className="chip"><span className="dot" />Humeur : {mood}</div>
+            <div className="chip" style={{ fontWeight: 700, color: "var(--ink)" }}>🪙 {coins} pièce{coins > 1 ? "s" : ""}</div>
+          </div>
         </div>
       </div>
 
@@ -1341,24 +1411,36 @@ function RitualsPage({ rituals, onCheck, onBreath, onGratitude, onEvening, eveni
 function JournalPage({ journal, onAdd }) {
   const [m, setM] = useState("Serein");
   const [note, setNote] = useState("");
+  const [idea, setIdea] = useState("");
   return (
     <>
-      <div className="pagehead"><div><h1>Journal</h1><div className="sub">Humeurs, petites notes, souvenirs partagés avec Tasky.</div></div></div>
+      <div className="pagehead"><div><h1>Journal</h1><div className="sub">Humeurs, notes et idées capturées avec Tasky.</div></div></div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h3 style={{ fontSize: 17, marginBottom: 10 }}>Capture rapide</h3>
+        <div className="sub" style={{ marginBottom: 10 }}>Une idée, une pensée à ne pas oublier ? Note-la ici — pas besoin d'humeur.</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input style={{ flex: 1, font: "inherit", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--ink)" }} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Une idée, une note…" onKeyDown={(e) => { if (e.key === "Enter" && idea.trim()) { onAdd({ kind: "Idée", note: idea.trim() }); setIdea(""); } }} />
+          <button className="btn" disabled={!idea.trim()} onClick={() => { onAdd({ kind: "Idée", note: idea.trim() }); setIdea(""); }}>Noter</button>
+        </div>
+      </div>
+
       <div className="card" style={{ marginBottom: 18 }}>
         <h3 style={{ fontSize: 17, marginBottom: 12 }}>Comment vous sentez-vous ?</h3>
         <div className="seg" style={{ marginBottom: 14 }}>
           {MOODS.map((x) => <button key={x} className={m === x ? "on" : ""} onClick={() => setM(x)}>{x}</button>)}
         </div>
         <div className="field"><textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Une note courte sur ce moment… (optionnel)" /></div>
-        <button className="btn" onClick={() => { onAdd({ mood: m, note: note.trim() || "—" }); setNote(""); }}>Garder ce moment</button>
+        <button className="btn" onClick={() => { onAdd({ kind: "Humeur", mood: m, note: note.trim() || "—" }); setNote(""); }}>Garder ce moment</button>
       </div>
+
       <div className="card">
-        <h3 style={{ fontSize: 17, marginBottom: 8 }}>Souvenirs</h3>
+        <h3 style={{ fontSize: 17, marginBottom: 8 }}>Souvenirs & idées</h3>
         {journal.length === 0 && <div className="sub" style={{ padding: "12px 0" }}>Votre premier souvenir vous attend.</div>}
         {journal.map((j) => (
           <div key={j.id} className="taskrow">
-            <span className="dot" style={{ marginTop: 8 }} />
-            <div><div style={{ fontWeight: 600, fontSize: 14.5 }}>{j.mood} <span className="sub" style={{ fontWeight: 400 }}>· {j.date}</span></div><div className="sub" style={{ marginTop: 2 }}>{j.note}</div></div>
+            <span className="dot" style={{ marginTop: 8, background: j.kind === "Idée" ? "var(--accent2)" : "var(--accent)" }} />
+            <div><div style={{ fontWeight: 600, fontSize: 14.5 }}>{j.kind === "Idée" ? "💡 Idée" : (j.mood || "Note")} <span className="sub" style={{ fontWeight: 400 }}>· {j.date}</span></div><div className="sub" style={{ marginTop: 2 }}>{j.note}</div></div>
           </div>
         ))}
       </div>
@@ -1368,40 +1450,45 @@ function JournalPage({ journal, onAdd }) {
 
 /* ---------- Inventaire ---------- */
 /* Indice d'action selon le type d'objet */
-function itemHint(i, active) {
+function itemHint(i, active, coins) {
   if (!i.unlocked) return "Verrouillé";
   if (i.id === "lanterne" || i.id === "bonsai") return active ? "✓ Placé dans le monde — toucher pour retirer" : "Toucher pour placer dans le monde";
   if (i.id === "pousse") return active ? "✓ Porté par Tasky — toucher pour retirer" : "Toucher pour ajouter à Tasky";
   if (i.id === "echarpe" || i.id === "cape") return active ? "✓ Porté par Tasky — toucher pour retirer" : "Toucher pour habiller Tasky";
-  if (i.type === "Nourriture") return "Toucher pour partager avec Tasky";
+  if (i.type === "Nourriture") { const c = i.cost || 5; return coins >= c ? `Donner à Tasky — ${c} 🪙` : `Il te faut ${c} 🪙`; }
   return "Toucher pour revoir ce souvenir";
 }
 
-function InventoryPage({ inventory, onUse, isActive }) {
+function InventoryPage({ inventory, onUse, isActive, coins = 0 }) {
   const types = ["Tous", "Nourriture", "Vêtements", "Décorations", "Objets émotionnels"];
   const [tab, setTab] = useState("Tous");
   const items = inventory.filter((i) => tab === "Tous" || i.type === tab);
   return (
     <>
-      <div className="pagehead"><div><h1>Inventaire</h1><div className="sub">Touchez un objet débloqué pour le placer dans le monde ou l'offrir à Tasky.</div></div></div>
+      <div className="pagehead">
+        <div><h1>Inventaire</h1><div className="sub">Nourris Tasky avec tes pièces, ou place/équipe les objets débloqués.</div></div>
+        <div className="chip" style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>🪙 {coins} pièce{coins > 1 ? "s" : ""}</div>
+      </div>
       <div className="seg" style={{ marginBottom: 18 }}>
         {types.map((x) => <button key={x} className={tab === x ? "on" : ""} onClick={() => setTab(x)}>{x}</button>)}
       </div>
       <div className="grid3">
         {items.map((i) => {
           const active = isActive(i);
+          const tooPoor = i.type === "Nourriture" && coins < (i.cost || 5);
+          const disabled = !i.unlocked || tooPoor;
           return (
             <button
               key={i.id}
               className="card"
-              disabled={!i.unlocked}
+              disabled={disabled}
               onClick={() => onUse(i)}
-              style={{ textAlign: "left", font: "inherit", color: "var(--ink)", cursor: i.unlocked ? "pointer" : "default", opacity: i.unlocked ? 1 : 0.45, borderColor: active ? "var(--accent)" : undefined, boxShadow: active ? "0 0 0 2px var(--accent) inset, var(--shadow)" : "var(--shadow)" }}
+              style={{ textAlign: "left", font: "inherit", color: "var(--ink)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.45 : 1, borderColor: active ? "var(--accent)" : undefined, boxShadow: active ? "0 0 0 2px var(--accent) inset, var(--shadow)" : "var(--shadow)" }}
             >
               <div style={{ fontWeight: 700, fontSize: 15 }}>{i.name} {!i.unlocked && "🔒"}</div>
-              <div className="chip" style={{ margin: "8px 0" }}>{i.type}</div>
+              <div className="chip" style={{ margin: "8px 0" }}>{i.type}{i.type === "Nourriture" ? ` · ${i.cost || 5} 🪙` : ""}</div>
               <div className="sub">{i.desc}</div>
-              <div className="sub" style={{ marginTop: 8, fontWeight: 600, color: active ? "var(--accent)" : "var(--muted)" }}>{itemHint(i, active)}</div>
+              <div className="sub" style={{ marginTop: 8, fontWeight: 600, color: active ? "var(--accent)" : "var(--muted)" }}>{itemHint(i, active, coins)}</div>
             </button>
           );
         })}
