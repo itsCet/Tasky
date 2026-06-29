@@ -878,6 +878,7 @@ export default function TaskyApp() {
 
 /* ---------- Onboarding ---------- */
 function Onboarding({ profile, setProfile, onDone }) {
+  const [intro, setIntro] = useState(true);
   const [step, setStep] = useState(0);
   const steps = ["Style", "Silhouette", "Regard", "Accessoire", "Tenue", "Rythme"];
   const style = STYLES.find((s) => s.id === profile.styleId) || STYLES[0];
@@ -890,6 +891,37 @@ function Onboarding({ profile, setProfile, onDone }) {
     { key: "outfit", items: OUTFITS, title: "Sa tenue de départ", sub: "Tasky est presque prêt." },
     { key: "mode", items: MODES, title: "Quel accompagnement veux-tu ?", sub: "À quel point Tasky compte sur toi. Modifiable à tout moment dans les Réglages." },
   ];
+
+  if (intro) {
+    const points = [
+      ["M5 13l4 4 10-11", "Note tes tâches et accomplis-les à ton rythme."],
+      ["M12 3v18M5 10l7-7 7 7", "Chaque tâche fait grandir Tasky : XP, pièces, évolutions."],
+      ["M12 21c-4-2-7-5.5-7-9.5C5 7 8 4 12 4s7 3 7 7.5c0 4-3 7.5-7 9.5z", "Prends soin de lui, personnalise-le, construis ton monde."],
+    ];
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20 }}>
+        <div style={{ width: "min(560px, 100%)", textAlign: "center" }}>
+          <div className="display" style={{ fontSize: 14, letterSpacing: "0.3em", color: "var(--muted)", marginBottom: 10 }}>TASKY</div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            <TaskyAvatar {...profile} accent={style.accent} mood="Joyeux" size={150} />
+          </div>
+          <h1 style={{ fontSize: 28, marginBottom: 8 }}>Ta liste de tâches, mais vivante</h1>
+          <div className="sub" style={{ marginBottom: 24, fontSize: 15 }}>Tasky est un petit compagnon qui grandit à chaque chose que tu accomplis. Plus tu avances, plus il évolue avec toi.</div>
+          <div className="card" style={{ textAlign: "left", marginBottom: 24 }}>
+            {points.map(([d, txt], i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < points.length - 1 ? "1px solid var(--line)" : "none" }}>
+                <span style={{ flex: "none", width: 34, height: 34, borderRadius: "50%", background: "var(--tint)", color: "var(--accent)", display: "grid", placeItems: "center" }}><Ic d={d} size={18} /></span>
+                <span style={{ fontSize: 14.5 }}>{txt}</span>
+              </div>
+            ))}
+          </div>
+          <button className="btn" style={{ padding: "13px 28px", fontSize: 15 }} onClick={() => setIntro(false)}>Créer mon Tasky</button>
+          <div className="sub" style={{ marginTop: 14, fontSize: 12.5 }}>Une minute pour le personnaliser, puis c'est parti.</div>
+        </div>
+      </div>
+    );
+  }
+
   const cur = opts[step];
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20 }}>
