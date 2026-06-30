@@ -459,6 +459,28 @@ function WanderingTasky({ avatarProps, motion, size = 94, cheer = 0, onClick }) 
   );
 }
 
+/* ---------- Bulle de rappel : Tasky te ressort tes idées notées ---------- */
+function SceneReminder({ ideas, onOpen }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (ideas.length <= 1) return;
+    const id = setInterval(() => setI((x) => (x + 1) % ideas.length), 7000);
+    return () => clearInterval(id);
+  }, [ideas.length]);
+  if (!ideas.length) return null;
+  const idea = ideas[i % ideas.length];
+  return (
+    <button
+      onClick={onOpen}
+      aria-label="Voir mes idées dans le Journal"
+      style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", maxWidth: "min(280px, 74%)", zIndex: 2, border: "none", cursor: "pointer", background: "rgba(255,255,255,0.93)", color: "#2B2B28", borderRadius: 14, padding: "8px 12px", boxShadow: "0 2px 12px rgba(0,0,0,0.12)", fontSize: 12.5, lineHeight: 1.35, textAlign: "left" }}
+    >
+      <span style={{ fontWeight: 700 }}>💡 Tasky te rappelle&nbsp;:</span> {idea.note}
+      {ideas.length > 1 && <span style={{ display: "block", marginTop: 3, opacity: 0.55, fontSize: 11 }}>{i + 1}/{ideas.length} · touche pour tout voir</span>}
+    </button>
+  );
+}
+
 /* ---------- Coach de première utilisation ---------- */
 function CoachTutorial({ avatarProps, onDone }) {
   const steps = [
@@ -743,6 +765,7 @@ export default function TaskyApp() {
     : todayLevel === "moyen" ? "Avance à ton rythme, une chose à la fois."
     : null;
   const isEvening = new Date().getHours() >= 18;
+  const journalIdeas = journal.filter((j) => j.kind === "Idée");
 
   const avatarProps = { ...profile, mood, stage: stage.id, accent: style.accent, tired: energy < 22 };
 
@@ -820,7 +843,8 @@ export default function TaskyApp() {
                 <div className="card scene" style={{ background: biomeBg(biome) }}>
                   <div style={{ position: "absolute", inset: 0, background: ambience.overlay }} />
                   <div className="ground" />
-                  <div className="display" style={{ position: "absolute", top: 12, left: 16, fontSize: 14, color: "#2B2B28", opacity: 0.7, zIndex: 1 }}>{stage.name}</div>
+                  <div className="display" style={{ position: "absolute", bottom: 10, left: 16, fontSize: 14, color: "#2B2B28", opacity: 0.65, zIndex: 1 }}>{stage.name}</div>
+                  <SceneReminder ideas={journalIdeas} onOpen={() => setPage("journal")} />
                   <WanderingTasky avatarProps={avatarProps} motion={motion} cheer={cheer} size={92} onClick={() => setPage("tasky")} />
                 </div>
                 <div className="card">
